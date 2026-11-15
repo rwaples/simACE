@@ -16,6 +16,7 @@ from simace.analysis.report_schema import (
     ANALYSIS_SAMPLE_INCIDENCE_KEYS,
     CENSORING_RENAME,
 )
+from simace.simulation.params import SimulationParams
 
 __all__ = [
     "plotting_report_view",
@@ -116,6 +117,8 @@ def plotting_report_view(report: dict[str, Any] | None, plot_payload: dict[str, 
     view["observed_h2_estimators"] = ((report.get("estimators") or {}).get("heritability") or {}).get("observed_scale")
     view["per_generation"] = report_per_generation(report)
     view["parameters"] = (report.get("inputs") or {}).get("parameters", {})
+    # The parameters as the record the reference lines read; None for a report without them.
+    view["sim"] = SimulationParams.from_mapping(view["parameters"]) if view["parameters"] else None
     # Recorded-pedigree truth, present only under C transmission (ADR 0025).
     traits = ((report.get("truth") or {}).get("recorded_pedigree") or {}).get("traits", {})
     view["truth_relationships"] = {name: tr["relationships"] for name, tr in traits.items() if "relationships" in tr}

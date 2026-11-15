@@ -24,6 +24,8 @@ if TYPE_CHECKING:
 
     import polars as pl
 
+    from simace.simulation.params import SimulationParams
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -31,7 +33,6 @@ from simace.core.relationships import (
     RELATIONSHIP_TYPES,
     reference_corr,
     reference_midparent_slope,
-    transmission_active,
 )
 from simace.plotting.plot_style import (
     COLOR_AFFECTED,
@@ -70,13 +71,13 @@ def _observed_per_relationship_type(
     return observed, n_pairs
 
 
-def _add_relationship_type_legend(fig: plt.Figure, params: dict[str, Any] | None) -> None:
+def _add_relationship_type_legend(fig: plt.Figure, sim: SimulationParams | None) -> None:
     """Put the shared marker legend across the top of a relationship-type figure."""
     fig.legend(
         handles=relationship_type_legend_handles(
             has_observed_mean=True,
             has_liability=True,
-            has_parametric=bool(params) and any(params.get(f"A{t}") is not None for t in (1, 2)),
+            has_parametric=sim is not None,
         ),
         loc="upper center",
         bbox_to_anchor=(0.5, 1.0),
@@ -105,7 +106,7 @@ def _mean_per_relationship_type(
 
 
 def _parametric_per_relationship_type(
-    params: dict[str, Any] | None,
+    sim: SimulationParams | None,
     trait_num: int,
     relationship_types: list[str],
     all_stats: Sequence[dict[str, Any]] = (),
@@ -116,7 +117,7 @@ def _parametric_per_relationship_type(
     ``generation`` picks the truth of pairs whose first member is in that
     generation; None pools the report window (ADR 0025).
     """
-    if params is None or params.get(f"A{trait_num}") is None or params.get(f"C{trait_num}") is None:
+    if sim is None:
         return {}
     trait_key = f"trait{trait_num}"
     out: dict[str, float] = {}
@@ -125,7 +126,8 @@ def _parametric_per_relationship_type(
             truth_entry((s.get("truth_relationships") or {}).get(trait_key, {}).get(ptype), generation)
             for s in all_stats
         ]
-        ref = reference_corr(ptype, params, trait_num, {ptype: {"r": truth_mean(entries, "r")}})
+        truth = {ptype: {"r": truth_mean(entries, "r")}}
+        ref = reference_corr(ptype, sim.assortment, sim.c_transmission, sim.vc, trait_num, truth)
         if ref is not None:
             out[ptype] = ref
     return out
@@ -135,7 +137,7 @@ def plot_tetrachoric_sibling(
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str,
-    params: dict[str, Any] | None = None,
+    sim: SimulationParams | None = None,
 ) -> None:
     """Plot tetrachoric correlations by relationship type using marker-based references.
 
@@ -163,7 +165,7 @@ def plot_tetrachoric_sibling(
             lambda s, pt, _tk=trait_key: s.get("liability_correlations", {}).get(_tk, {}).get(pt),
             relationship_types,
         )
-        parametric = _parametric_per_relationship_type(params, trait_num, relationship_types, all_stats)
+        parametric = _parametric_per_relationship_type(sim, trait_num, relationship_types, all_stats)
 
         state = setup_relationship_type_panel(
             ax,
@@ -181,7 +183,7 @@ def plot_tetrachoric_sibling(
 
     finalize_relationship_type_panels(panel_states)
 
-    _add_relationship_type_legend(fig, params)
+    _add_relationship_type_legend(fig, sim)
 
     finalize_plot(output_path, scenario=scenario, tight_rect=[0, 0, 1, 0.94])
 
@@ -190,7 +192,7 @@ def plot_tetrachoric_by_generation(
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
-    params: dict[str, Any] | None = None,
+    sim: SimulationParams | None = None,
 ) -> None:
     """Plot tetrachoric correlations by relationship type, broken out by generation.
 
@@ -235,7 +237,7 @@ def plot_tetrachoric_by_generation(
                 relationship_types,
             )
             parametric = _parametric_per_relationship_type(
-                params, trait_num, relationship_types, all_stats, generation=int(gen_key.replace("gen", ""))
+                sim, trait_num, relationship_types, all_stats, generation=int(gen_key.replace("gen", ""))
             )
 
             state = setup_relationship_type_panel(
@@ -257,7 +259,7 @@ def plot_tetrachoric_by_generation(
 
         finalize_relationship_type_panels(row_states)
 
-    _add_relationship_type_legend(fig, params)
+    _add_relationship_type_legend(fig, sim)
 
     finalize_plot(output_path, scenario=scenario, tight_rect=[0, 0, 1, 0.96])
 
@@ -366,7 +368,7 @@ def plot_parent_offspring_liability(
     output_path: str | Path,
     scenario: str = "",
     subsample_note: str = "",
-    params: dict[str, Any] | None = None,
+    sim: SimulationParams | None = None,
 ) -> None:
     """2 x 3 scatter grid: midparent vs offspring liability by generation."""
     from simace.plotting.plot_style import COLOR_FEMALE, COLOR_MALE
@@ -481,7 +483,7 @@ def plot_parent_offspring_liability(
 
             # Expected slope: configured A without C transmission, else analytic
             # where exact or the rep-mean recorded-pedigree truth (ADR 0025).
-            if params is not None:
+            if sim is not None:
                 truth_slope = truth_mean(
                     [
                         truth_entry((s.get("truth_midparent_slope") or {}).get(f"trait{trait_num}"), gen)
@@ -489,7 +491,9 @@ def plot_parent_offspring_liability(
                     ],
                     "slope",
                 )
-                expected_slope = reference_midparent_slope(params, trait_num, truth_slope)
+                expected_slope = reference_midparent_slope(
+                    sim.assortment, sim.c_transmission, sim.vc, trait_num, truth_slope
+                )
                 if expected_slope is not None:
                     x_mean = np.mean(midparent_liab)
                     y_mean = np.mean(offspring_liab)
@@ -562,14 +566,14 @@ def plot_parent_offspring_liability(
     # Legend on the last axes
     from matplotlib.lines import Line2D
 
-    has_any_expected = params is not None and any(params.get(f"A{t}") is not None for t in [1, 2])
+    has_any_expected = sim is not None
     legend_handles = [
         Line2D([0], [0], color=COLOR_AFFECTED, linewidth=1.2, label="Observed h\u00b2"),
         Line2D([0], [0], color=COLOR_FEMALE, linewidth=1.2, label="Daughters"),
         Line2D([0], [0], color=COLOR_MALE, linewidth=1.2, label="Sons"),
     ]
     if has_any_expected:
-        label = "Expected (A, b_m, b_f)" if transmission_active(params) else "Expected (A)"
+        label = "Expected (A, b_m, b_f)" if sim is not None and sim.c_transmission.active else "Expected (A)"
         legend_handles.append(Line2D([0], [0], color=COLOR_UNAFFECTED, linestyle="--", linewidth=1.0, label=label))
     axes[0, -1].legend(handles=legend_handles, loc="lower right", fontsize=8)
 
@@ -580,7 +584,7 @@ def plot_tetrachoric_by_sex(
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
-    params: dict[str, Any] | None = None,
+    sim: SimulationParams | None = None,
 ) -> None:
     """Tetrachoric correlations for same-sex pairs: 2 rows (traits) x 2 cols (F/M).
 
@@ -617,7 +621,7 @@ def plot_tetrachoric_by_sex(
                 ),
                 relationship_types,
             )
-            parametric = _parametric_per_relationship_type(params, trait_num, relationship_types, all_stats)
+            parametric = _parametric_per_relationship_type(sim, trait_num, relationship_types, all_stats)
 
             state = setup_relationship_type_panel(
                 ax,
@@ -638,6 +642,6 @@ def plot_tetrachoric_by_sex(
         # Shared y-axis within a trait row only — cross-trait magnitudes differ.
         finalize_relationship_type_panels(row_states)
 
-    _add_relationship_type_legend(fig, params)
+    _add_relationship_type_legend(fig, sim)
 
     finalize_plot(output_path, scenario=scenario, tight_rect=[0, 0, 1, 0.96])

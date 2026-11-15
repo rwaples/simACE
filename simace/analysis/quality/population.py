@@ -18,6 +18,8 @@ if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
 
+    from simace.simulation.params import SimulationParams
+
     type _Frame = pd.DataFrame | pl.DataFrame
 
 
@@ -26,7 +28,7 @@ def _population_covariance(x: np.ndarray, y: np.ndarray) -> float:
     return float(np.mean((x - x.mean()) * (y - y.mean())))
 
 
-def compute_per_generation_stats(df: _Frame, params: dict[str, Any]) -> dict[str, Any]:
+def compute_per_generation_stats(df: _Frame, sim: SimulationParams) -> dict[str, Any]:
     """Compute per-generation statistics for two traits.
 
     For each generation, computes liability mean/variance/sd, per-component
@@ -34,14 +36,14 @@ def compute_per_generation_stats(df: _Frame, params: dict[str, Any]) -> dict[str
 
     Args:
         df: Pedigree DataFrame with columns id, A1, C1, E1, A2, C2, E2.
-        params: Scenario parameters; requires keys ``N`` and ``G_ped``.
+        sim: The rep's parameters.
 
     Returns:
         Dict keyed by ``"generation_{g}"`` where each value is a dict of
         summary statistics (n, liability mean/variance/sd, component mean/var).
     """
-    N = params["N"]
-    ngen = params["G_ped"]
+    N = sim.N
+    ngen = sim.span.G_ped
 
     # Assign generation labels once via integer division
     gen_labels = df["id"].to_numpy() // N
@@ -77,7 +79,7 @@ def compute_per_generation_stats(df: _Frame, params: dict[str, Any]) -> dict[str
     return results
 
 
-def validate_population(df: _Frame, params: dict[str, Any]) -> dict[str, Any]:
+def validate_population(df: _Frame, sim: SimulationParams) -> dict[str, Any]:
     """Validate population-level properties.
 
     Checks that each generation's id range holds exactly ``N`` individuals,
@@ -87,14 +89,14 @@ def validate_population(df: _Frame, params: dict[str, Any]) -> dict[str, Any]:
 
     Args:
         df: Pedigree DataFrame with columns id, generation and mother.
-        params: Scenario parameters; requires keys ``N``, ``G_ped``.
+        sim: The rep's parameters.
 
     Returns:
         Dict of check-name to result dicts.
     """
     results = {}
-    N = params["N"]
-    ngen = params["G_ped"]
+    N = sim.N
+    ngen = sim.span.G_ped
 
     gen_assignments = df["id"].to_numpy() // N
     gen_sizes = np.bincount(gen_assignments, minlength=ngen)[:ngen].tolist()
@@ -145,12 +147,11 @@ def _label_summary(labels: list[int]) -> str:
     return f"{len(labels)} labels from {labels[0]} to {labels[-1]}"
 
 
-def compute_family_size_distribution(df: _Frame, params: dict[str, Any]) -> dict[str, Any]:
+def compute_family_size_distribution(df: _Frame) -> dict[str, Any]:
     """Compute offspring count distributions per parent sex.
 
     Args:
         df: Pedigree DataFrame with columns mother and father.
-        params: Scenario parameters (unused but accepted for API consistency).
 
     Returns:
         Dict with keys ``"mother"`` and ``"father"``, each mapping to a dict

@@ -90,25 +90,27 @@ def _decisions(params: dict[str, Any]) -> dict[str, Any]:
     Update the calls here when signatures change; the values must not.
     """
     from simace.analysis.quality.am_relatedness import am_relatedness_mode
-    from simace.analysis.quality.assortative_mating import _mated_matrix, assortment_schedule, schedule_span
     from simace.analysis.stats.effective_size import theoretical_expectations
     from simace.core import relationships as rel
+    from simace.simulation.params import SimulationParams
 
+    sim = SimulationParams.from_mapping(params)
+    records = (sim.assortment, sim.c_transmission, sim.vc)
     out: dict[str, Any] = {
-        "schedule": assortment_schedule(params),
-        "span": schedule_span(params),
-        "mated_matrix": _mated_matrix(params),
-        "effective_size": theoretical_expectations(params),
+        "schedule": sim.assortment.schedule,
+        "span": (sim.span.G_sim, sim.span.burnin),
+        "mated_matrix": sim.assortment.mated_matrix,
+        "effective_size": theoretical_expectations(sim),
     }
     for t in (1, 2):
         out[f"t{t}"] = {
-            "am_mode": am_relatedness_mode(params, t),
-            "closed_form": rel._closed_form_holds(params, t),
-            "midparent_slope": rel.reference_midparent_slope(params, t, truth=-99.0),
+            "am_mode": am_relatedness_mode(sim.assortment, t),
+            "closed_form": rel.closed_form_holds(sim.assortment, sim.vc, t),
+            "midparent_slope": rel.reference_midparent_slope(*records, t, truth=-99.0),
             "types": {
                 ptype: {
-                    "analytic": rel.analytic_applies(ptype, params, t),
-                    "reference": rel.reference_corr(ptype, params, t, truth={ptype: {"r": -99.0}}),
+                    "analytic": rel.analytic_applies(ptype, *records, t),
+                    "reference": rel.reference_corr(ptype, *records, t, truth={ptype: {"r": -99.0}}),
                 }
                 for ptype in rel.RELATIONSHIP_TYPES
             },

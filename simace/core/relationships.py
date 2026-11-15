@@ -16,20 +16,20 @@ __all__ = [
     "RELATIONSHIP_TYPES",
     "SEX_LEVELS",
     "analytic_applies",
+    "closed_form_holds",
     "expected_liability_corr",
     "reference_corr",
     "reference_midparent_slope",
     "shared_environment_coefficient",
-    "transmission_active",
-    "transmission_coefficients",
     "transmission_key",
 ]
 
-from numbers import Real
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
+
+    from simace.simulation.params import Assortment, CTransmission, VarianceComponents
 
 # Canonical 7-element subset of ``pedigree_graph.RELATIONSHIPS`` used for
 # tetrachoric / liability correlation analyses.
@@ -129,71 +129,49 @@ C_TRANSMISSION_KEYS: tuple[str, ...] = tuple(
 )
 
 
-def transmission_coefficients(params: Mapping[str, Any], trait: int) -> tuple[float, float]:
-    """Return trait ``trait``'s ``(b_m, b_f)``; absent keys (pre-ADR-0025 params) are 0."""
-    return (
-        float(params.get(transmission_key("maternal", trait), 0.0)),
-        float(params.get(transmission_key("paternal", trait), 0.0)),
-    )
-
-
-def transmission_active(params: Mapping[str, Any]) -> bool:
-    """Whether any trait has a nonzero C transmission coefficient."""
-    return any(transmission_coefficients(params, t) != (0.0, 0.0) for t in (1, 2))
-
-
-def _is_zero(value: Any) -> bool:
-    """Whether a mating setting is a no-op; an unparsed value (a gathered TSV's string) counts as active."""
-    if value is None:
-        return True
-    if isinstance(value, str):
-        return False
-    if isinstance(value, dict):
-        return all(float(v) == 0.0 for v in value.values())
-    if isinstance(value, list | tuple):
-        return all(_is_zero(v) for v in value)
-    return float(value) == 0.0
-
-
-def analytic_applies(relationship_type: str, params: Mapping[str, Any], trait: int) -> bool:
+def analytic_applies(
+    relationship_type: str, assortment: Assortment, ctm: CTransmission, vc: VarianceComponents, trait: int
+) -> bool:
     """Whether the analytic expected correlation is exact for ``relationship_type`` on ``trait``.
 
     Always with no C transmission on the trait (the pre-ADR-0025 line).
-    Otherwise only under random mating with a recorded ``C{trait}`` and a
-    scalar ``E{trait}`` (so parent and offspring share one ``V_P``) and for a
-    single-path type, which has a shared-C fraction.
+    Otherwise only where :func:`closed_form_holds`, and for a single-path
+    type, which has a shared-C fraction.
     """
-    b_m, b_f = transmission_coefficients(params, trait)
+    b_m, b_f = ctm.coefficients(trait)
     if b_m == b_f == 0.0:
         return True
-    return _closed_form_holds(params, trait) and shared_environment_coefficient(relationship_type, b_m, b_f) is not None
-
-
-def _closed_form_holds(params: Mapping[str, Any], trait: int) -> bool:
-    """Random mating with a recorded ``C{trait}`` and a scalar ``E{trait}``, where the transmission formulas are exact.
-
-    Wright-Fisher mating is random whatever assortment keys it inherits (they are ignored at runtime).
-    """
-    random_mating = params.get("mating_model", "standard") != "standard" or all(
-        _is_zero(params.get(key)) for key in ("assort1", "assort2", "assort_matrix")
+    return (
+        closed_form_holds(assortment, vc, trait)
+        and shared_environment_coefficient(relationship_type, b_m, b_f) is not None
     )
-    return random_mating and all(isinstance(params.get(f"{k}{trait}"), Real) for k in ("C", "E"))
 
 
-def _liability_variance(params: Mapping[str, Any], trait: int) -> float:
-    """``V_P = A + C + E`` for the trait; 1 when E is per-generation, which has no single ``V_P``, or C is absent.
+def closed_form_holds(assortment: Assortment, vc: VarianceComponents, trait: int) -> bool:
+    """Random mating throughout with a scalar ``E{trait}``, where the transmission formulas are exact.
+
+    Random mating is the schedule the simulator mates on: Wright-Fisher, a
+    zero-diagonal ``assort_matrix`` and a map entry past ``G_sim`` all pair
+    at random.
+    """
+    return not assortment.any_active and vc.scalar_E(trait)
+
+
+def _liability_variance(vc: VarianceComponents, trait: int) -> float:
+    """``V_P = A + C + E`` for the trait; 1 when E is per-generation, which has no single ``V_P``.
 
     The gate admits per-generation E only without C transmission, where the
     line stays the undivided ``2 * kinship * A + C_shared * C`` it always was.
     """
-    if not all(isinstance(params.get(f"{k}{trait}"), Real) for k in ("C", "E")):
-        return 1.0
-    return float(params[f"A{trait}"]) + float(params[f"C{trait}"]) + float(params[f"E{trait}"])
+    V_P = vc.V_P(trait)
+    return 1.0 if V_P is None else V_P
 
 
 def reference_corr(
     relationship_type: str,
-    params: Mapping[str, Any],
+    assortment: Assortment,
+    ctm: CTransmission,
+    vc: VarianceComponents,
     trait: int,
     truth: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> float | None:
@@ -201,37 +179,33 @@ def reference_corr(
 
     The analytic ``(2 * kinship * A + C_shared * C) / V_P`` when
     :func:`analytic_applies`, else the recorded-pedigree truth
-    ``truth[relationship_type]["r"]``, else None. None also where ``A`` or
-    ``C`` is absent or the trait has no liability variance.
+    ``truth[relationship_type]["r"]``, else None. None also where the trait
+    has no liability variance.
     """
-    if analytic_applies(relationship_type, params, trait):
-        A, C = params.get(f"A{trait}"), params.get(f"C{trait}")
-        if not (isinstance(A, Real) and isinstance(C, Real)):
-            return None
-        b_m, b_f = transmission_coefficients(params, trait)
-        return expected_liability_corr(
-            relationship_type, float(A), float(C), b_m, b_f, _liability_variance(params, trait)
-        )
+    if analytic_applies(relationship_type, assortment, ctm, vc, trait):
+        b_m, b_f = ctm.coefficients(trait)
+        A, C = float(vc.A[trait - 1]), float(vc.C[trait - 1])
+        return expected_liability_corr(relationship_type, A, C, b_m, b_f, _liability_variance(vc, trait))
     entry = (truth or {}).get(relationship_type)
     return None if entry is None or entry.get("r") is None else float(entry["r"])
 
 
-def reference_midparent_slope(params: Mapping[str, Any], trait: int, truth: float | None = None) -> float | None:
+def reference_midparent_slope(
+    assortment: Assortment, ctm: CTransmission, vc: VarianceComponents, trait: int, truth: float | None = None
+) -> float | None:
     """The midparent-offspring liability slope reference line for ``trait``.
 
     ``A / V_P`` without C transmission and ``(A + (b_m + b_f) * C) / V_P``
     under the closed-form gate; otherwise the recorded-pedigree truth slope,
-    else None. None where ``A`` is absent and, on the formula paths, for a
-    trait with no liability variance (whose recorded slope is None too).
+    else None. None, on the formula paths, for a trait with no liability
+    variance (whose recorded slope is None too).
     """
-    A = params.get(f"A{trait}")
-    if not isinstance(A, Real):
-        return None
-    b_m, b_f = transmission_coefficients(params, trait)
+    A, C = float(vc.A[trait - 1]), float(vc.C[trait - 1])
+    b_m, b_f = ctm.coefficients(trait)
     if b_m == b_f == 0.0:
-        V_P = _liability_variance(params, trait)
-        return float(A) / V_P if V_P > 0.0 else None
-    if _closed_form_holds(params, trait):
-        V_P = _liability_variance(params, trait)
-        return (float(A) + (b_m + b_f) * float(params[f"C{trait}"])) / V_P if V_P > 0.0 else None
+        V_P = _liability_variance(vc, trait)
+        return A / V_P if V_P > 0.0 else None
+    if closed_form_holds(assortment, vc, trait):
+        V_P = _liability_variance(vc, trait)
+        return (A + (b_m + b_f) * C) / V_P if V_P > 0.0 else None
     return truth

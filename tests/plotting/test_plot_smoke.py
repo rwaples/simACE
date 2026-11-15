@@ -11,6 +11,7 @@ import polars as pl
 import pytest
 
 from simace.core.relationships import RELATIONSHIP_TYPES
+from tests.conftest import sim_params
 
 matplotlib.use("Agg")
 
@@ -736,7 +737,7 @@ class TestPlotCorrelationsExpanded:
         ]
         out = tmp_path / "observed_h2.png"
 
-        plot_heritability.plot_observed_heritability(stats, out, scenario="test", params={"A1": 0.5, "A2": 0.4})
+        plot_heritability.plot_observed_heritability(stats, out, scenario="test", sim=sim_params(A1=0.5, A2=0.4))
 
         assert out.exists()
         assert "UNDER CONSTRUCTION" in seen_texts

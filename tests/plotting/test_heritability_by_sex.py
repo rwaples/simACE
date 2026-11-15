@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import pytest
 
 from simace.plotting import plot_heritability
+from tests.conftest import sim_params
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -29,7 +30,7 @@ def _expected_lines(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, stats, para
     """``(xdata, ydata)`` of the dashed lines on trait 1's panel."""
     figures = []
     monkeypatch.setattr(plot_heritability, "finalize_plot", lambda *a, **k: figures.append(plt.gcf()))
-    plot_heritability.plot_heritability_by_sex_generation(stats, tmp_path / "p.png", params=params)
+    plot_heritability.plot_heritability_by_sex_generation(stats, tmp_path / "p.png", sim=sim_params(params))
     ax = figures[0].axes[0]
     lines = [(list(line.get_xdata()), list(line.get_ydata())) for line in ax.lines if line.get_linestyle() == "--"]
     plt.close(figures[0])

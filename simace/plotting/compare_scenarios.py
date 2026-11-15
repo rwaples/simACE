@@ -32,7 +32,6 @@ __all__ = [
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -54,9 +53,7 @@ from simace.plotting.plot_style import (
 )
 from simace.plotting.plot_utils import finalize_plot
 from simace.plotting.stats_report import plotting_report_view, report_per_generation
-
-if TYPE_CHECKING:
-    from collections.abc import Mapping
+from simace.simulation.params import SimulationParams
 
 logger = logging.getLogger(__name__)
 
@@ -335,10 +332,10 @@ def compare_component_distributions(
 # ---------------------------------------------------------------------------
 
 
-def scenario_parameters(pedigree_path: Path) -> dict[str, Any]:
-    """The resolved parameters of the rep that wrote *pedigree_path*, from the ``report.yaml`` beside it."""
+def scenario_parameters(pedigree_path: Path) -> SimulationParams:
+    """The parameters of the rep that wrote *pedigree_path*, parsed from the ``report.yaml`` beside it."""
     report = load_yaml(Path(pedigree_path).with_name("report.yaml"))
-    return dict((report.get("inputs") or {}).get("parameters") or {})
+    return SimulationParams.from_mapping(report["inputs"]["parameters"])
 
 
 def compare_correlations_by_relclass(
@@ -346,7 +343,7 @@ def compare_correlations_by_relclass(
     labels: list[str],
     output_path: Path,
     trait: int = 1,
-    reference_params: Mapping[str, Any] | None = None,
+    reference: SimulationParams | None = None,
     min_generation: int | None = None,
 ) -> None:
     """Grouped bar chart: liability correlation by relationship class, per scenario.
@@ -354,7 +351,7 @@ def compare_correlations_by_relclass(
     Relationship classes are pooled to {FS, PO, HS, 1C} and displayed on
     the x-axis in decreasing expected kinship.  Each scenario gets one bar
     per class, drawn with min/max error bars across replicates.  If
-    ``reference_params`` is supplied, a dashed line per class shows that
+    ``reference`` is supplied, a dashed line per class shows that
     scenario's reference correlation
     (:func:`~simace.core.relationships.reference_corr`): under random mating
     the analytic ``(2 * kinship * A + C_shared * C) / V_P``, with C
@@ -369,7 +366,7 @@ def compare_correlations_by_relclass(
         labels: display label per scenario (same order as ``scenario_paths``).
         output_path: image path to save.
         trait: 1 or 2.
-        reference_params: resolved parameters of the reference scenario,
+        reference: parameters of the reference scenario,
             usually the first (:func:`scenario_parameters`).  If ``None``, no
             reference lines are drawn.
         min_generation: restrict correlation computations to individuals in
@@ -454,11 +451,14 @@ def compare_correlations_by_relclass(
                 color=color,
             )
 
-    if reference_params is not None:
+    if reference is not None:
         for i, (_, _, members) in enumerate(POOLED_RELATIONSHIP_CLASSES):
             # A pooled class has one expectation only when its members agree:
             # HS pools MHS (shares C) with PHS (does not), so it has none when C > 0.
-            expected, *others = (reference_corr(member, reference_params, trait) for member in members)
+            expected, *others = (
+                reference_corr(member, reference.assortment, reference.c_transmission, reference.vc, trait)
+                for member in members
+            )
             if expected is None or any(other != expected for other in others):
                 continue
             ax.hlines(
@@ -971,7 +971,7 @@ def compare_cohort_fs_correlations(
     labels: list[str],
     output_path: Path,
     trait: int = 1,
-    reference_params: Mapping[str, Any] | None = None,
+    reference: SimulationParams | None = None,
     min_generation: int = 1,
 ) -> None:
     """Per-generation FS liability correlation, one line per scenario.
@@ -987,7 +987,7 @@ def compare_cohort_fs_correlations(
         labels: display label per scenario.
         output_path: image path to save.
         trait: 1 or 2.
-        reference_params: resolved parameters of the reference scenario,
+        reference: parameters of the reference scenario,
             usually the first (:func:`scenario_parameters`), for the FS
             reference line (:func:`~simace.core.relationships.reference_corr`).
             Omitted if ``None`` or when that scenario has no analytic FS value.
@@ -1010,7 +1010,11 @@ def compare_cohort_fs_correlations(
         ax.plot(gens, means, color=color, marker="o", label=label)
         ax.fill_between(gens, lows, highs, color=color, alpha=0.15, linewidth=0)
 
-    ref = None if reference_params is None else reference_corr("FS", reference_params, trait)
+    ref = (
+        None
+        if reference is None
+        else reference_corr("FS", reference.assortment, reference.c_transmission, reference.vc, trait)
+    )
     if ref is not None:
         ax.axhline(
             y=ref,

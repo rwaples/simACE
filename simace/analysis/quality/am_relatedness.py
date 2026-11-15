@@ -36,9 +36,10 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from ._common import _MIN_PAIRS_FOR_CORR
-from .assortative_mating import assortment_schedule
 
 if TYPE_CHECKING:
+    from simace.simulation.params import Assortment
+
     from ._common import MateCorrelations
 
 __all__ = [
@@ -49,20 +50,18 @@ __all__ = [
 ]
 
 
-def am_relatedness_mode(params: dict[str, Any], t: int) -> str:
+def am_relatedness_mode(assortment: Assortment, t: int) -> str:
     """Classify trait ``t``'s assortment for relatedness expectations.
 
-    Reads the schedule the simulator mates on (:func:`.assortative_mating.assortment_schedule`),
-    so a set ``assort_matrix`` counts through its diagonal and Wright-Fisher is
-    random mating. Returns ``"none"`` (no AM → random-mating expectation
+    Reads the schedule the simulator mates on, so a set ``assort_matrix``
+    counts through its diagonal and Wright-Fisher is random mating. Returns ``"none"`` (no AM → random-mating expectation
     applies), ``"single"`` (single-trait direct AM → AM formula applies), or
     ``"bivariate"`` (both traits assort → cross-trait paths; single-trait
     formula does not apply, caller should skip).
     """
-    schedule = assortment_schedule(params)
-    if not any(schedule[t - 1]):
+    if not assortment.active(t):
         return "none"
-    return "bivariate" if any(schedule[2 - t]) else "single"
+    return "bivariate" if assortment.active(3 - t) else "single"
 
 
 def observed_mate_correlations(mates: MateCorrelations, t: int) -> tuple[float, float, int]:
@@ -103,7 +102,7 @@ def am_expected_a_correlation(kind: str, mu_a: float, r_ho: float) -> float:
 
 def resolve_expected_a_corr(
     mates: MateCorrelations,
-    params: dict[str, Any],
+    assortment: Assortment,
     t: int,
     kind: str,
     default: float,
@@ -117,7 +116,7 @@ def resolve_expected_a_corr(
     * bivariate AM → ``(None, reason, {})`` so the caller can skip the scored
       check (cross-trait paths are not modelled by the single-trait formula).
     """
-    mode = am_relatedness_mode(params, t)
+    mode = am_relatedness_mode(assortment, t)
     if mode == "none":
         return default, None, {}
     if mode == "bivariate":

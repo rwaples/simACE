@@ -44,7 +44,7 @@ def main(argv: list[str] | None = None) -> None:
         labels=labels,
         output_path=Path(args.output),
         trait=1,
-        reference_params=scenario_parameters(scenario_paths[0][0]),
+        reference=scenario_parameters(scenario_paths[0][0]),
         min_generation=args.min_generation,
     )
 

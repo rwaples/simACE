@@ -25,15 +25,16 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from pedigree_graph import RELATIONSHIPS, PedigreeGraph
 
-from simace.analysis.quality.am_relatedness import am_relatedness_mode
 from simace.analysis.stats.correlations import report_generations
 from simace.core.pedigree_arrays import PedigreeArrays
-from simace.core.relationships import RELATIONSHIP_TYPES, transmission_active
+from simace.core.relationships import RELATIONSHIP_TYPES
 
 if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
     from pedigree_graph import RelationshipMoments
+
+    from simace.simulation.params import SimulationParams
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +112,7 @@ def _midparent_truth(df: pd.DataFrame | pl.DataFrame, window: list[int], t: int)
 
 def recorded_pedigree_truth(
     df: pd.DataFrame | pl.DataFrame,
-    params: dict[str, Any],
+    sim: SimulationParams,
     max_degree: int,
     clips: list[dict[str, Any]] | None = None,
     graph: PedigreeGraph | None = None,
@@ -132,7 +133,7 @@ def recorded_pedigree_truth(
         r, cov_L, cov_A, cov_C, cov_AC, cov_CA, by_generation}``; the clip
         list only when ``clips`` is not None.
     """
-    if not transmission_active(params):
+    if not sim.c_transmission.active:
         return None
     t0 = time.perf_counter()
     codes = sorted(set(RELATIONSHIP_TYPES) | {c for c, rel in RELATIONSHIPS.items() if rel.degree <= max_degree})
@@ -153,7 +154,7 @@ def recorded_pedigree_truth(
         }
         for t in (1, 2)
     }
-    am = any(am_relatedness_mode(params, t) != "none" for t in (1, 2))
+    am = sim.assortment.any_active
     logger.info("Recorded-pedigree truth over %d categories in %.1fs", len(codes), time.perf_counter() - t0)
     limitations = [AM_LIMITATION] if am else []
     out: dict[str, Any] = {"traits": traits, "limitations": limitations}

@@ -13,6 +13,7 @@ from simace.core.relationships import RELATIONSHIP_TYPES, shared_environment_coe
 from simace.core.yaml_io import dump_yaml, load_yaml
 from simace.plotting.stats_report import plotting_report_view
 from simace.simulation.simulate import run_simulation
+from tests.conftest import sim_params
 
 _SIM = dict(
     N=60_000,
@@ -37,12 +38,12 @@ _RM = {"assort1": 0.0, "assort2": 0.0, "mating_model": "standard"}
 @pytest.fixture(scope="module")
 def rm_truth():
     ped = run_simulation(seed=4, **_SIM, **_CT).pedigree
-    return ped, recorded_pedigree_truth(ped, {**_SIM, **_RM, **_CT}, max_degree=2)
+    return ped, recorded_pedigree_truth(ped, sim_params({**_SIM, **_RM, **_CT}), max_degree=2)
 
 
 def test_no_truth_without_transmission():
     ped = run_simulation(seed=1, **{**_SIM, "N": 500}).pedigree
-    assert recorded_pedigree_truth(ped, {**_SIM, **_RM}, max_degree=2) is None
+    assert recorded_pedigree_truth(ped, sim_params({**_SIM, **_RM}), max_degree=2) is None
 
 
 @pytest.mark.parametrize("code", ["FS", "MO", "FO", "MHS", "PHS"])
@@ -82,19 +83,19 @@ def test_clips_round_trip_through_the_pedigree_and_reach_the_truth(tmp_path):
     assert read_c_transmission_clips(tmp_path / "q.parquet") is None
 
     params = {**_SIM, **_RM, "Ctm_maternal1": 1.0, "Ctm_maternal2": 1.0}
-    truth = recorded_pedigree_truth(ped, params, max_degree=1, clips=clips)
+    truth = recorded_pedigree_truth(ped, sim_params(params), max_degree=1, clips=clips)
     assert truth["c_transmission_clips"] == clips
     assert "exceeded the configured C in 1 generation(s) (1;" in truth["limitations"][0]
-    clean = recorded_pedigree_truth(ped, params, max_degree=1, clips=[])
+    clean = recorded_pedigree_truth(ped, sim_params(params), max_degree=1, clips=[])
     assert clean["c_transmission_clips"] == []
     assert clean["limitations"] == []
-    assert "c_transmission_clips" not in recorded_pedigree_truth(ped, params, max_degree=1)
+    assert "c_transmission_clips" not in recorded_pedigree_truth(ped, sim_params(params), max_degree=1)
 
 
 def test_assortative_mating_records_the_limitation():
     params = {**_SIM, **_RM, "assort1": 0.3, **_CT}
     ped = run_simulation(seed=2, **{**_SIM, "N": 2000}, assort1=0.3, **_CT).pedigree
-    assert recorded_pedigree_truth(ped, params, max_degree=1)["limitations"] == [AM_LIMITATION]
+    assert recorded_pedigree_truth(ped, sim_params(params), max_degree=1)["limitations"] == [AM_LIMITATION]
 
 
 def _analyze(tmp_path, pedigree_kwargs, params):

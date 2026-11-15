@@ -13,9 +13,10 @@ if TYPE_CHECKING:
     import polars as pl
 
     from simace.core.pedigree_arrays import PedigreeArrays
+    from simace.simulation.params import SimulationParams
 
 
-def validate_structural(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any], ped: PedigreeArrays) -> dict[str, Any]:
+def validate_structural(df: pd.DataFrame | pl.DataFrame, sim: SimulationParams, ped: PedigreeArrays) -> dict[str, Any]:
     """Validate structural integrity of the pedigree.
 
     Checks contiguous IDs, valid parent references, sex-parent consistency,
@@ -23,15 +24,15 @@ def validate_structural(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any],
 
     Args:
         df: Pedigree DataFrame with columns id, sex, mother, father.
-        params: Scenario parameters; requires keys ``N`` and ``G_ped``.
+        sim: The rep's parameters.
         ped: The same pedigree as id-addressable arrays.
 
     Returns:
         Dict of check-name to result dicts (keys: passed, details, …).
     """
     results = {}
-    N = params["N"]
-    ngen = params["G_ped"]
+    N = sim.N
+    ngen = sim.span.G_ped
     expected_total = N * ngen
 
     # ID integrity

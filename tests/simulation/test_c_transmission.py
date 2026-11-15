@@ -15,6 +15,7 @@ from simace.core.relationships import reference_corr, reference_midparent_slope
 from simace.simulation.params import CTransmission
 from simace.simulation.reproduce import _transmitted_c, reproduce
 from simace.simulation.simulate import run_simulation
+from tests.conftest import reference_records
 
 _BASE = dict(
     N=20_000,
@@ -183,9 +184,15 @@ def test_analytic_parent_offspring_references_match_a_random_mating_simulation()
     mother, father = ped["mother"].to_numpy(), ped["father"].to_numpy()
     kids = np.flatnonzero(mother >= 0)
     child, mom, dad = liab[kids], liab[mother[kids]], liab[father[kids]]
-    assert np.corrcoef(child, mom)[0, 1] == pytest.approx(reference_corr("MO", params, 1), abs=0.015)
-    assert np.corrcoef(child, dad)[0, 1] == pytest.approx(reference_corr("FO", params, 1), abs=0.015)
-    assert _ols(child, (mom + dad) / 2)[0] == pytest.approx(reference_midparent_slope(params, 1), abs=0.03)
+    assert np.corrcoef(child, mom)[0, 1] == pytest.approx(
+        reference_corr("MO", *reference_records(params), 1), abs=0.015
+    )
+    assert np.corrcoef(child, dad)[0, 1] == pytest.approx(
+        reference_corr("FO", *reference_records(params), 1), abs=0.015
+    )
+    assert _ols(child, (mom + dad) / 2)[0] == pytest.approx(
+        reference_midparent_slope(*reference_records(params), 1), abs=0.03
+    )
 
 
 @pytest.mark.parametrize("seed", range(20))

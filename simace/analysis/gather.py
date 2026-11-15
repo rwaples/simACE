@@ -20,6 +20,7 @@ from simace.analysis.validate.verdict import load_verdict, record_name, records
 from simace.core.publish import publish
 from simace.core.relationships import C_TRANSMISSION_KEYS, RELATIONSHIP_TYPES
 from simace.core.yaml_io import load_yaml
+from simace.simulation.params import LEGACY_DEFAULTS
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -107,12 +108,12 @@ def extract_metrics(report_path: str) -> dict[str, Any]:
         "rA": params.get("rA"),
         "rC": params.get("rC"),
         "rE": params.get("rE"),
-        # Population parameters.  ``mating_model`` defaults to "standard" so
+        # Population parameters.  ``mating_model`` takes its legacy default so
         # reports predating this column still gather cleanly.
         # ``expected_twin_rate`` is sourced from the report via
         # REPORT_SUMMARY_REGISTRY (see report_schema.py) — validate_twins emits
         # it for both standard (= p_mztwin) and WF (= 0) branches.
-        "mating_model": params.get("mating_model", "standard"),
+        "mating_model": params.get("mating_model", LEGACY_DEFAULTS["mating_model"]),
         "p_mztwin": params.get("p_mztwin"),
         "mating_lambda": params.get("mating_lambda"),
         "assort1": params.get("assort1"),
@@ -123,7 +124,7 @@ def extract_metrics(report_path: str) -> dict[str, Any]:
         # which plot_validation parses back like the per-generation dict cells.
         "assort_matrix": None if params.get("assort_matrix") is None else json.dumps(params["assort_matrix"]),
         # C transmission coefficients (ADR 0025); reports predating them were built with 0.
-        **{key: params.get(key, 0.0) for key in C_TRANSMISSION_KEYS},
+        **{key: params.get(key, LEGACY_DEFAULTS[key]) for key in C_TRANSMISSION_KEYS},
         "seed": params.get("seed"),
         "quality_passed": summary.get("passed"),
         "checks_failed": summary.get("n_failed"),

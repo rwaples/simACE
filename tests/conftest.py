@@ -1,6 +1,9 @@
 """Shared fixtures and Hypothesis strategies for the simace test suite."""
 
+from __future__ import annotations
+
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -9,15 +12,18 @@ import pytest
 from hypothesis import settings
 from hypothesis import strategies as st
 
+from simace.config import resolve_defaults
 from simace.core.parquet import load_parquet, save_parquet
 from simace.core.schema import PEDIGREE
 from simace.simulation.mating import _mating_standard
+from simace.simulation.params import SimulationParams
 from simace.simulation.reproduce import generate_correlated_components, reproduce
 from simace.simulation.simulate import run_simulation
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
-    from pathlib import Path
+
+    from simace.simulation.params import Assortment, CTransmission, Span, VarianceComponents
 
 # Hypothesis profiles, selected by ``HYPOTHESIS_PROFILE`` (default ``fast``).
 # Property files carry no ``@settings`` of their own so that
@@ -96,6 +102,38 @@ def schema_pad(df: pl.DataFrame, schema: Mapping[str, str]) -> pl.DataFrame:
 def rng():
     """Seeded random generator for reproducible tests."""
     return np.random.default_rng(42)
+
+
+#: What a test's keyword set leaves out: ``config/_default.yaml``, under ``run_simulation``'s own
+#: defaults, so a set that ``run_simulation`` ran (no ``G_sim``: no burn-in) parses to the record it ran.
+SIM_DEFAULTS: dict[str, Any] = {
+    **resolve_defaults(Path(__file__).resolve().parents[1] / "config"),
+    "rE": 0.0,
+    "G_sim": None,
+    "assort1": 0.0,
+    "assort2": 0.0,
+    "assort_matrix": None,
+}
+
+
+def sim_params(params: Mapping[str, Any] | None = None, /, **overrides: Any) -> SimulationParams:
+    """The parameter record of a test's keyword set, as a rep's ``params.yaml`` with it would parse.
+
+    Keys the set leaves out take :data:`SIM_DEFAULTS`.
+    """
+    return SimulationParams.from_mapping({**SIM_DEFAULTS, **(params or {}), **overrides})
+
+
+def reference_records(params: Mapping[str, Any]) -> tuple[Assortment, CTransmission, VarianceComponents]:
+    """``(assortment, c_transmission, vc)`` of a keyword set: the leading arguments of the reference lines."""
+    sim = sim_params(params)
+    return sim.assortment, sim.c_transmission, sim.vc
+
+
+def mating_records(params: Mapping[str, Any]) -> tuple[Span, VarianceComponents, Assortment]:
+    """``(span, vc, assortment)`` of a keyword set: the arguments of ``recorded_matings``."""
+    sim = sim_params(params)
+    return sim.span, sim.vc, sim.assortment
 
 
 @pytest.fixture

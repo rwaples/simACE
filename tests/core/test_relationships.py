@@ -11,6 +11,7 @@ from simace.core.relationships import (
     reference_midparent_slope,
     shared_environment_coefficient,
 )
+from tests.conftest import reference_records
 
 
 def test_maternal_vs_paternal_half_sib_share_c_differently():
@@ -102,47 +103,60 @@ _RM = {"A1": 0.4, "C1": 0.3, "E1": 0.3, "assort1": 0.0, "assort2": 0.0, "assort_
     [
         ({"assort1": 0.3}, "MO"),
         ({"assort2": {0: 0.0, 2: 0.2}}, "MO"),
-        ({"assort_matrix": [[0.0, 0.1], [0.1, 0.0]]}, "MO"),
+        ({"assort_matrix": [[0.2, 0.1], [0.1, 0.0]]}, "MO"),
         ({"E1": {0: 0.3, 2: 0.5}}, "MO"),
         ({}, "1C"),
     ],
-    ids=["am", "per_gen_am", "cross_am", "dict_e", "lineage_mixed"],
+    ids=["am", "per_gen_am", "matrix", "dict_e", "lineage_mixed"],
 )
 def test_analytic_gate_rejects_what_the_formula_cannot_describe(overrides, rt):
     params = {**_RM, **overrides, "Ctm_maternal1": 0.5}
-    assert not analytic_applies(rt, params, 1)
-    assert reference_corr(rt, params, 1) is None
-    assert reference_corr(rt, params, 1, truth={rt: {"r": 0.42}}) == 0.42
+    assert not analytic_applies(rt, *reference_records(params), 1)
+    assert reference_corr(rt, *reference_records(params), 1) is None
+    assert reference_corr(rt, *reference_records(params), 1, truth={rt: {"r": 0.42}}) == 0.42
 
 
 def test_analytic_gate_passes_without_transmission_whatever_the_mating():
     params = {**_RM, "assort1": 0.3, "E1": {0: 0.3, 2: 0.5}}
-    assert analytic_applies("1C", params, 1)
-    assert reference_corr("FS", params, 1, truth={"FS": {"r": 0.9}}) == pytest.approx(0.5 * 0.4 + 0.3)
-    assert reference_midparent_slope(params, 1) == 0.4
+    assert analytic_applies("1C", *reference_records(params), 1)
+    assert reference_corr("FS", *reference_records(params), 1, truth={"FS": {"r": 0.9}}) == pytest.approx(
+        0.5 * 0.4 + 0.3
+    )
+    assert reference_midparent_slope(*reference_records(params), 1) == 0.4
 
 
 def test_reference_lines_under_the_gate():
     params = {**_RM, "Ctm_maternal1": 0.5, "Ctm_paternal1": 0.3}
-    assert reference_corr("PHS", params, 1) == pytest.approx(0.25 * 0.4 + 0.09 * 0.3)
-    assert reference_midparent_slope(params, 1) == pytest.approx(0.4 + 0.8 * 0.3)
-    assert reference_midparent_slope({**params, "assort1": 0.2}, 1, truth=0.61) == 0.61
+    assert reference_corr("PHS", *reference_records(params), 1) == pytest.approx(0.25 * 0.4 + 0.09 * 0.3)
+    assert reference_midparent_slope(*reference_records(params), 1) == pytest.approx(0.4 + 0.8 * 0.3)
+    assert reference_midparent_slope(*reference_records({**params, "assort1": 0.2}), 1, truth=0.61) == 0.61
 
 
 def test_reference_lines_divide_by_liability_variance_without_transmission_too():
     params = {"A1": 0.8, "C1": 0.4, "E1": 0.8, "assort1": 0.0, "assort2": 0.0}  # V_P = 2
-    assert reference_corr("FS", params, 1) == pytest.approx((0.4 + 0.4) / 2.0)
-    assert reference_midparent_slope(params, 1) == pytest.approx(0.4)
-    nearby = reference_corr("FS", {**params, "Ctm_maternal1": 1e-9}, 1)
-    assert nearby == pytest.approx(reference_corr("FS", params, 1))  # continuous in b
+    assert reference_corr("FS", *reference_records(params), 1) == pytest.approx((0.4 + 0.4) / 2.0)
+    assert reference_midparent_slope(*reference_records(params), 1) == pytest.approx(0.4)
+    nearby = reference_corr("FS", *reference_records({**params, "Ctm_maternal1": 1e-9}), 1)
+    assert nearby == pytest.approx(reference_corr("FS", *reference_records(params), 1))  # continuous in b
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [{"assort_matrix": [[0.0, 0.1], [0.1, 0.0]]}, {"G_ped": 3, "G_sim": 4, "assort1": {0: 0.0, 4: 0.3}}],
+    ids=["zero_diagonal_matrix", "map_past_g_sim"],
+)
+def test_assortment_the_simulator_never_mates_on_is_random_mating(overrides):
+    """A zero-diagonal matrix and a map entry past G_sim pair at random, so the closed form holds (#86)."""
+    params = {**_RM, **overrides, "Ctm_maternal1": 0.5}
+    assert analytic_applies("MO", *reference_records(params), 1)
 
 
 def test_wright_fisher_is_random_mating_whatever_it_inherits():
     params = {**_RM, "assort1": 0.3, "mating_model": "wright_fisher", "Ctm_maternal1": 0.5}
-    assert analytic_applies("MO", params, 1)
+    assert analytic_applies("MO", *reference_records(params), 1)
 
 
 def test_transmission_is_per_trait():
     params = {**_RM, "A2": 0.5, "C2": 0.1, "E2": 0.4, "Ctm_maternal2": 0.5, "assort1": 0.3}
-    assert analytic_applies("MO", params, 1)
-    assert not analytic_applies("MO", params, 2)
+    assert analytic_applies("MO", *reference_records(params), 1)
+    assert not analytic_applies("MO", *reference_records(params), 2)

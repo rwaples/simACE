@@ -8,11 +8,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 import pytest
+import yaml
 
 from simace.analysis.stats.pedigree_estimates import POOLED_RELATIONSHIP_CLASSES, load_pedigree_estimates
 from simace.core.parquet import save_parquet
 from simace.plotting import compare_scenarios
 from simace.plotting.compare_scenarios import load_sib_pair_liabilities
+from tests.conftest import SIM_DEFAULTS, sim_params
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -187,7 +189,9 @@ def _reference_lines(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, params: di
     monkeypatch.setattr(
         compare_scenarios, "load_pooled_liability_correlations", lambda *a, **k: {name: [0.3] for name in names}
     )
-    compare_scenarios.compare_correlations_by_relclass([[tmp_path]], ["s"], tmp_path / "p.png", reference_params=params)
+    compare_scenarios.compare_correlations_by_relclass(
+        [[tmp_path]], ["s"], tmp_path / "p.png", reference=sim_params(params)
+    )
     lines = {}
     dashed = [c for c in figures[0].axes[0].collections if c.get_linestyle()[0][1] is not None]
     for collection in dashed:
@@ -214,5 +218,6 @@ def test_relclass_reference_lines_follow_c_transmission(monkeypatch: pytest.Monk
 
 
 def test_scenario_parameters_reads_the_report_beside_the_pedigree(tmp_path: Path):
-    (tmp_path / "report.yaml").write_text("inputs:\n  parameters:\n    A1: 0.5\n")
-    assert compare_scenarios.scenario_parameters(tmp_path / "pedigree.parquet") == {"A1": 0.5}
+    params = {**SIM_DEFAULTS, "A1": 0.5}
+    (tmp_path / "report.yaml").write_text(yaml.safe_dump({"inputs": {"parameters": params}}))
+    assert compare_scenarios.scenario_parameters(tmp_path / "pedigree.parquet") == sim_params(params)

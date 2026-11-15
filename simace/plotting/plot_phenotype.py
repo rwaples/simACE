@@ -76,6 +76,8 @@ from simace.plotting.stats_report import plotting_report_views
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from simace.simulation.params import SimulationParams
+
 logger = logging.getLogger(__name__)
 
 MAX_PLOT_POINTS = 200_000
@@ -90,7 +92,8 @@ class RenderContext:
     scenario: str
     censor_age: float
     subsample_note: str
-    params: dict  # resolved scenario parameters; drives reference lines
+    #: The rep parameters the reference lines read (rep 1's report); None when its report has none.
+    sim: SimulationParams | None
     gen_censoring: dict[int, list[float]] | None
     max_degree: int | None
     #: The scenario's calibrated-test verdict (``validation_summary.yaml``), or None before `simace validate`.
@@ -174,7 +177,7 @@ PHENOTYPE_RENDERERS: tuple[PlotRenderSpec, ...] = (
     ),
     PlotRenderSpec(
         "mate_correlation",
-        lambda ctx, p: plot_mate_correlation(ctx.all_stats, p, ctx.scenario, params=ctx.params),
+        lambda ctx, p: plot_mate_correlation(ctx.all_stats, p, ctx.scenario, sim=ctx.sim),
     ),
     # Distribution plots
     PlotRenderSpec(
@@ -294,15 +297,15 @@ PHENOTYPE_RENDERERS: tuple[PlotRenderSpec, ...] = (
     # Correlation plots
     PlotRenderSpec(
         "tetrachoric.phenotype",
-        lambda ctx, p: plot_tetrachoric_sibling(ctx.all_stats, p, ctx.scenario, params=ctx.params),
+        lambda ctx, p: plot_tetrachoric_sibling(ctx.all_stats, p, ctx.scenario, sim=ctx.sim),
     ),
     PlotRenderSpec(
         "tetrachoric.phenotype.by_sex",
-        lambda ctx, p: plot_tetrachoric_by_sex(ctx.all_stats, p, ctx.scenario, params=ctx.params),
+        lambda ctx, p: plot_tetrachoric_by_sex(ctx.all_stats, p, ctx.scenario, sim=ctx.sim),
     ),
     PlotRenderSpec(
         "tetrachoric.phenotype.by_generation",
-        lambda ctx, p: plot_tetrachoric_by_generation(ctx.all_stats, p, ctx.scenario, params=ctx.params),
+        lambda ctx, p: plot_tetrachoric_by_generation(ctx.all_stats, p, ctx.scenario, sim=ctx.sim),
     ),
     PlotRenderSpec(
         "cross_trait_tetrachoric",
@@ -316,7 +319,7 @@ PHENOTYPE_RENDERERS: tuple[PlotRenderSpec, ...] = (
             p,
             ctx.scenario,
             subsample_note=ctx.subsample_note,
-            params=ctx.params,
+            sim=ctx.sim,
         ),
     ),
     # Per-generation heritability
@@ -341,12 +344,12 @@ PHENOTYPE_RENDERERS: tuple[PlotRenderSpec, ...] = (
     # PO-regression heritability by sex
     PlotRenderSpec(
         "heritability.by_sex.by_generation",
-        lambda ctx, p: plot_heritability_by_sex_generation(ctx.all_stats, p, ctx.scenario, params=ctx.params),
+        lambda ctx, p: plot_heritability_by_sex_generation(ctx.all_stats, p, ctx.scenario, sim=ctx.sim),
     ),
     # Observed-scale heritability
     PlotRenderSpec(
         "observed_h2",
-        lambda ctx, p: plot_observed_heritability(ctx.all_stats, p, ctx.scenario, params=ctx.params),
+        lambda ctx, p: plot_observed_heritability(ctx.all_stats, p, ctx.scenario, sim=ctx.sim),
     ),
 )
 
@@ -422,17 +425,13 @@ def main(
         df_samples = df_samples.sample(n=MAX_PLOT_POINTS, seed=42)
         subsample_note = f"Plotting sample: {MAX_PLOT_POINTS:,} of {original_n:,} shown"
 
-    # Resolved scenario parameters (from inputs.parameters) reconstructed into
-    # the flat view; needed by the correlation/heritability reference lines.
-    validation_params = all_stats[0].get("parameters", {})
-
     ctx = RenderContext(
         all_stats=all_stats,
         df_samples=df_samples,
         scenario=scenario,
         censor_age=censor_age,
         subsample_note=subsample_note,
-        params=validation_params,
+        sim=all_stats[0].get("sim"),
         gen_censoring=gen_censoring,
         max_degree=max_degree,
         verdict=verdict,

@@ -42,6 +42,7 @@ from simace.plotting.plot_style import (
     enable_value_gridlines,
 )
 from simace.plotting.plot_verdict import plot_verdict
+from simace.simulation.params import Assortment, CTransmission, Span, VarianceComponents
 
 logger = logging.getLogger(__name__)
 
@@ -213,7 +214,8 @@ def _draw_am_reference(df: pd.DataFrame, ax: Axes, kind: str) -> bool:
     drawn = False
     for i, s in enumerate(df["scenario"].unique()):
         sdf = df[df["scenario"] == s]
-        if am_relatedness_mode(_scenario_params(sdf), 1) == "none":
+        records = _scenario_records(sdf)
+        if records is None or am_relatedness_mode(records[0], 1) == "none":
             continue
         mu = pd.to_numeric(sdf["mate_corr_A1"], errors="coerce").mean()
         rho = pd.to_numeric(sdf.get("mate_corr_liability1"), errors="coerce").mean()
@@ -305,32 +307,45 @@ def _literal(value: Any) -> Any:
         return value
 
 
-def _scenario_params(d: pd.DataFrame) -> dict[str, Any]:
-    """A gathered scenario's parameters as ``reference_corr`` reads them.
+def _scenario_records(d: pd.DataFrame) -> tuple[Assortment, CTransmission, VarianceComponents] | None:
+    """A gathered scenario's parameter records, as the reference lines read them; None when a column is missing.
 
     Empty cells are dropped (absent, not active), and dict- or matrix-valued
     cells (per-generation E/assortment, ``assort_matrix``) are parsed back,
     so the reference-line gate sees the same values as on per-rep plots.
     """
     row = d.iloc[0].to_dict()
-    return {k: _literal(v) for k, v in row.items() if not (v is None or (isinstance(v, float) and np.isnan(v)))}
+    params = {k: _literal(v) for k, v in row.items() if not (v is None or (isinstance(v, float) and np.isnan(v)))}
+    try:
+        span = Span.from_mapping(params)
+        return (
+            Assortment.from_mapping(params, span),
+            CTransmission.from_mapping(params),
+            VarianceComponents.from_mapping(params),
+        )
+    except KeyError:
+        return None
 
 
 def _reference_corr(code: str, trait: int) -> Callable[[pd.DataFrame], float | None]:
     """A scenario's reference correlation: analytic where exact, else the rep-mean recorded-pedigree truth."""
 
     def expected(d: pd.DataFrame) -> float | None:
+        records = _scenario_records(d)
+        if records is None:
+            return None
         truth = _rep_mean(d, f"truth_r_{code}_trait{trait}")
-        return reference_corr(code, _scenario_params(d), trait, {code: {"r": truth}})
+        return reference_corr(code, *records, trait, {code: {"r": truth}})
 
     return expected
 
 
 def _reference_slope(trait: int) -> Callable[[pd.DataFrame], float | None]:
     def expected(d: pd.DataFrame) -> float | None:
-        return reference_midparent_slope(
-            _scenario_params(d), trait, _rep_mean(d, f"truth_midparent_slope_trait{trait}")
-        )
+        records = _scenario_records(d)
+        if records is None:
+            return None
+        return reference_midparent_slope(*records, trait, _rep_mean(d, f"truth_midparent_slope_trait{trait}"))
 
     return expected
 

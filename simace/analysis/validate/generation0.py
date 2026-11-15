@@ -34,14 +34,11 @@ import numpy as np
 import polars as pl
 
 from simace.analysis.quality._common import cluster_codes
-from simace.analysis.quality.assortative_mating import assortment_schedule, schedule_span
-from simace.core.relationships import transmission_active
-from simace.simulation.params import resolve_per_gen_param
 
 from .calibrated import information_cell, not_applicable_cell, pearson_influence, scored_cell, section
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from simace.simulation.params import SimulationParams
 
     from .calibrated import RepInputs
 
@@ -54,12 +51,7 @@ TOTAL_VARIANCE_CELLS = ("trait1_total", "trait2_total")
 CROSS_TRAIT_RC_CELLS = ("rC",)
 
 
-def _per_gen(params: Mapping[str, Any], name: str, G_sim: int) -> list[float]:
-
-    return resolve_per_gen_param(params.get(name, 0.0), G_sim, name=name)
-
-
-def _assortment(params: Mapping[str, Any]) -> str | None:
+def _assortment(sim: SimulationParams) -> str | None:
     """Why total variance does not apply: assortment in iterations 0..burnin, or None.
 
     It shifts generation 0's A, and rA carries either trait's into the other.
@@ -67,30 +59,30 @@ def _assortment(params: Mapping[str, Any]) -> str | None:
     the household C draw does not depend on the parents, so rC is unaffected
     (ADR 0030 §4).
     """
-    _, burnin = schedule_span(params)
-    assort1, assort2 = assortment_schedule(params)
+    burnin = sim.span.burnin
+    assort1, assort2 = sim.assortment.schedule
     for i in range(burnin + 1):
         if assort1[i] != 0 or assort2[i] != 0:
             return f"assortative mating in iteration {i}, up to burn-in ({burnin})"
     return None
 
 
-def _inbreeding(params: Mapping[str, Any]) -> str | None:
+def _inbreeding(sim: SimulationParams) -> str | None:
     """Why total variance does not apply: inbred parents scale generation 0's Mendelian residual (ADR 0033).
 
     Iteration i's scale reads its parents' F, which is 0 for the founders'
     children, so with a burn-in of at most 1 generation 0 is unaffected.
     """
-    mode = params.get("inbreeding_mode", "off")
-    _, burnin = schedule_span(params)
+    mode = sim.inbreeding.mode
+    burnin = sim.span.burnin
     if mode != "off" and burnin >= 2:
         return f"inbreeding mode {mode} with burn-in {burnin} >= 2: generation 0's parents can be inbred"
     return None
 
 
-def _transmission(params: Mapping[str, Any]) -> str | None:
+def _transmission(sim: SimulationParams) -> str | None:
     """Why neither test applies: C transmission sizes the fresh draw against the transmitted part (ADR 0030 §4)."""
-    return "C transmission" if transmission_active(params) else None
+    return "C transmission" if sim.c_transmission.active else None
 
 
 def _generation0(pedigree: pl.DataFrame) -> tuple[pl.DataFrame, np.ndarray, int]:
@@ -150,14 +142,14 @@ def run_total_variance(inputs: RepInputs) -> dict[str, Any]:
         ``{"scope", "cells", "summary"}`` with cells ``trait1_total`` and
         ``trait2_total``, or no cells and ``not_applicable``.
     """
-    params = inputs.params
-    if (reason := _transmission(params) or _assortment(params) or _inbreeding(params)) is not None:
+    sim = inputs.sim
+    if (reason := _transmission(sim) or _assortment(sim) or _inbreeding(sim)) is not None:
         return section(SCOPE, {}, reason)
-    G_sim, burnin = schedule_span(params)
+    vc, span = sim.vc, sim.span
     rows, households, n_households = _generation0(inputs.pedigree)
     cells = {}
     for t in (1, 2):
-        expected = float(params[f"A{t}"]) + float(params[f"C{t}"]) + _per_gen(params, f"E{t}", G_sim)[burnin]
+        expected = float(vc.A[t - 1]) + float(vc.C[t - 1]) + vc.E_per_gen(t, span.G_sim)[span.burnin]
         a, c, e = (rows[f"{k}{t}"].to_numpy().astype(np.float64) for k in "ACE")
         x = a + c + e
         cells[f"trait{t}_total"] = _total_cell(x, households, n_households, expected)
@@ -171,10 +163,10 @@ def run_cross_trait_rc(inputs: RepInputs) -> dict[str, Any]:
         ``{"scope", "cells", "summary"}`` with cell ``rC``, or no cells and
         ``not_applicable``.
     """
-    params = inputs.params
-    reason = _transmission(params)
-    rc = float(params.get("rC", 0.0))
-    if reason is None and (float(params["C1"]) == 0 or float(params["C2"]) == 0):
+    sim = inputs.sim
+    reason = _transmission(sim)
+    rc = float(sim.vc.rC)
+    if reason is None and (float(sim.vc.C[0]) == 0 or float(sim.vc.C[1]) == 0):
         reason = "C1 or C2 configured 0"
     if reason is None and abs(rc) == 1:
         reason = "|rC| = 1"

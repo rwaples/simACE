@@ -8,7 +8,7 @@ import numpy as np
 from pedigree_graph import RELATIONSHIPS
 
 from simace.core.numerics import unique_sorted
-from simace.core.relationships import analytic_applies, shared_environment_coefficient, transmission_coefficients
+from simace.core.relationships import analytic_applies, shared_environment_coefficient
 
 from ._common import (
     _MIN_PAIRS_FOR_CORR,
@@ -23,6 +23,8 @@ if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
     from pedigree_graph import RelationshipMoments
+
+    from simace.simulation.params import SimulationParams
 
     from ._common import MateCorrelations
 
@@ -74,7 +76,7 @@ def household_sibling_counts(df: pd.DataFrame | pl.DataFrame) -> dict[str, int]:
 def _validate_half_sib_correlations(
     mates: MateCorrelations,
     sibling_moments: RelationshipMoments,
-    params: dict[str, Any],
+    sim: SimulationParams,
     results: dict[str, Any],
 ) -> None:
     """Report half-sib correlations for A, liability, and shared C, with their expectations.
@@ -110,7 +112,7 @@ def _validate_half_sib_correlations(
             # Half-sib A correlation: 2*kinship under random mating, AM-inflated
             # to (1 + 2*mu_A + mu_A*r_ho)/4 under single-trait assortment.
             expected_a, skip, info = resolve_expected_a_corr(
-                mates, params, t, "HS", 2.0 * RELATIONSHIPS["MHS"].nominal_kinship
+                mates, sim.assortment, t, "HS", 2.0 * RELATIONSHIPS["MHS"].nominal_kinship
             )
             if expected_a is None:
                 # Reported, not asserted: no single-trait formula under {skip}.
@@ -137,10 +139,12 @@ def _validate_half_sib_correlations(
     if n_phs >= _MIN_PAIRS_FOR_CORR:
         for t in [1, 2]:
             phs_pheno = pair_correlation(phs, f"P{t}")
-            b_f = transmission_coefficients(params, t)[1]
+            coefficients = sim.c_transmission.coefficients(t)
+            phs_analytic = analytic_applies("PHS", sim.assortment, sim.c_transmission, sim.vc, t)
+            b_f = coefficients[1]
             if b_f == 0.0:
                 expectation = f"~0.25·A{t}"
-            elif analytic_applies("PHS", params, t):
+            elif phs_analytic:
                 expectation = f"~(0.25·A{t} + {b_f**2:.4g}·C{t})/V_P"
             else:
                 expectation = "no closed form under C transmission with this mating"
@@ -153,11 +157,7 @@ def _validate_half_sib_correlations(
             obs_c = pair_correlation(phs, f"C{t}")
             # Without C transmission paternal half-sibs share no C. With it they
             # share b_f**2 under the analytic gate; otherwise there is no formula.
-            expected_c = (
-                shared_environment_coefficient("PHS", *transmission_coefficients(params, t))
-                if analytic_applies("PHS", params, t)
-                else None
-            )
+            expected_c = shared_environment_coefficient("PHS", *coefficients) if phs_analytic else None
             if expected_c is None:
                 results[f"half_sib_shared_C{t}"] = _info(
                     f"PHS shared C{t} correlation: {obs_c:.4f} (not asserted: C transmission outside "
@@ -183,7 +183,7 @@ def _validate_half_sib_correlations(
 
 def validate_half_sibs(
     df: pd.DataFrame | pl.DataFrame,
-    params: dict[str, Any],
+    sim: SimulationParams,
     sibling_moments: RelationshipMoments,
     mates: MateCorrelations,
 ) -> dict[str, Any]:
@@ -199,8 +199,7 @@ def validate_half_sibs(
 
     Args:
         df: Pedigree DataFrame with columns id, mother, father, twin.
-        params: Scenario parameters; requires keys ``mating_lambda``, ``A1``,
-            ``A2``.
+        sim: The rep's parameters.
         sibling_moments: Relationship moments of ``df`` over ``FS``, ``MHS``
             and ``PHS`` with the ``A{t}``, ``C{t}`` and ``P{t}`` columns
             (:func:`~simace.analysis.quality._common.sibling_moments`).
@@ -246,6 +245,6 @@ def validate_half_sibs(
     else:
         results["offspring_with_half_sib"] = _info("No offspring with maternal siblings to check")
 
-    _validate_half_sib_correlations(mates, sibling_moments, params, results)
+    _validate_half_sib_correlations(mates, sibling_moments, sim, results)
 
     return results

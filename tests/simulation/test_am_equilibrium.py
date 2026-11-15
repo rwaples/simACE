@@ -11,6 +11,7 @@ import pytest
 from simace.analysis.quality import validate_am_equilibrium
 from simace.simulation.am_equilibrium import am_equilibrium_variance, am_variance_trajectory
 from simace.simulation.simulate import run_simulation
+from tests.conftest import sim_params
 
 
 def _paper_a2(A_base: float, V_env: float, r_ho: float) -> float:
@@ -84,7 +85,7 @@ class TestValidation:
     def test_single_trait_am_passes(self):
         p = _params()
         df = run_simulation(**p).pedigree
-        res = validate_am_equilibrium(df, p)
+        res = validate_am_equilibrium(df, sim_params(p))
         assert "am_equilibrium_A1" in res
         assert "am_equilibrium_A2" not in res  # trait 2 does not assort
         check = res["am_equilibrium_A1"]
@@ -96,17 +97,17 @@ class TestValidation:
     def test_no_am_emits_no_checks(self):
         p = _params(assort1=0.0, assort2=0.0)
         df = run_simulation(**p).pedigree
-        assert validate_am_equilibrium(df, p) == {}
+        assert validate_am_equilibrium(df, sim_params(p)) == {}
 
     def test_wright_fisher_emits_no_checks(self):
         p = _params(mating_model="wright_fisher")
         df = run_simulation(**p).pedigree
-        assert validate_am_equilibrium(df, p) == {}
+        assert validate_am_equilibrium(df, sim_params(p)) == {}
 
     def test_bivariate_am_is_informational_with_reason(self):
         p = _params(assort2=0.5)
         df = run_simulation(**p).pedigree
-        res = validate_am_equilibrium(df, p)
+        res = validate_am_equilibrium(df, sim_params(p))
         assert res["am_equilibrium_A1"].get("informational") is True
         assert "passed" not in res["am_equilibrium_A1"]
         assert "cross-trait" in res["am_equilibrium_A1"]["details"]

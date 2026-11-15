@@ -21,19 +21,19 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from simace.core.relationships import transmission_coefficients
 from simace.simulation.am_equilibrium import am_equilibrium_variance, am_variance_trajectory
 
 from ._common import _info, _result
 from .am_relatedness import am_relatedness_mode
-from .assortative_mating import assortment_schedule, schedule_span
 
 if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
 
+    from simace.simulation.params import SimulationParams
 
-def validate_am_equilibrium(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
+
+def validate_am_equilibrium(df: pd.DataFrame | pl.DataFrame, sim: SimulationParams) -> dict[str, Any]:
     """Validate that ``Var(A)`` reaches the AM-inflated equilibrium per trait.
 
     Emits no checks when the mating schedule has no assortment (Wright-Fisher,
@@ -50,30 +50,24 @@ def validate_am_equilibrium(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
 
     Args:
         df: Pedigree DataFrame with ``id`` and ``A1``/``A2`` columns.
-        params: Scenario parameters; uses ``assort1``/``assort2``/``assort_matrix``, ``A{t}``,
-            ``C{t}``, ``E{t}``, ``N``, ``G_ped``, ``G_sim``, ``mating_model``.
+        sim: The rep's parameters.
 
     Returns:
         Dict of check-name to result dicts (possibly empty).
     """
     results: dict[str, Any] = {}
 
-    schedule = assortment_schedule(params)
-    if not any(schedule[0]) and not any(schedule[1]):
+    assortment = sim.assortment
+    if not assortment.any_active:
         return results  # random mating -> nothing to validate
 
-    N = params.get("N")
-    G_ped = params.get("G_ped")
-    if N is None or G_ped is None:
-        return results
-    G_sim, _ = schedule_span(params)
-
-    gen_labels = df["id"].to_numpy() // int(N)
-    last_mask = gen_labels == (int(G_ped) - 1)
+    G_sim = sim.span.G_sim
+    gen_labels = df["id"].to_numpy() // sim.N
+    last_mask = gen_labels == (sim.span.G_ped - 1)
     n_last = int(last_mask.sum())
 
     for t in (1, 2):
-        mode = am_relatedness_mode(params, t)
+        mode = am_relatedness_mode(assortment, t)
         if mode == "none":
             continue
         if mode == "bivariate":
@@ -83,28 +77,24 @@ def validate_am_equilibrium(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
             )
             continue
 
-        A_base = params.get(f"A{t}")
-        C = params.get(f"C{t}")
-        E = params.get(f"E{t}")
-
-        if len(set(schedule[t - 1])) > 1 or isinstance(C, dict) or isinstance(E, dict):
+        if not assortment.constant(t) or not sim.vc.scalar_E(t):
             results[f"am_equilibrium_A{t}"] = _info(
                 f"Per-generation AM/C/E (dict-valued); AM equilibrium ill-defined, skipping trait {t}.",
             )
             continue
 
-        if A_base is None or float(A_base) <= 0.0 or n_last < 2:
+        A_base = float(sim.vc.A[t - 1])
+        if A_base <= 0.0 or n_last < 2:
             continue
 
-        A_base = float(A_base)
-        V_env = float(C or 0.0) + float(E or 0.0)
-        r_ho = schedule[t - 1][0]
+        V_env = float(sim.vc.C[t - 1]) + sim.vc.E_per_gen(t, 1)[0]
+        r_ho = assortment.schedule[t - 1][0]
 
         V_pred = float(am_variance_trajectory(A_base, V_env, r_ho, int(G_sim))[-1])
         a2 = float(am_equilibrium_variance(A_base, V_env, r_ho))
         obs = float(np.var(df[f"A{t}"].to_numpy()[last_mask]))
 
-        if transmission_coefficients(params, t) != (0.0, 0.0):
+        if sim.c_transmission.coefficients(t) != (0.0, 0.0):
             results[f"am_equilibrium_A{t}"] = _info(
                 f"AM Var(A{t}) final generation: {obs:.4f} (recursion predicts {V_pred:.4f}, not asserted: "
                 f"C transmission gives mates and offspring an A-C covariance the recursion omits; ADR 0025)",

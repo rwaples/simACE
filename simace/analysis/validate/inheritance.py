@@ -165,14 +165,14 @@ def run_mendelian_residual(inputs: RepInputs) -> dict[str, Any]:
         ``{"scope", "cells", "summary"}`` with cells ``trait{t}_FS``,
         ``trait{t}_MHS``, ``trait{t}_PHS`` and ``trait{t}_variance``.
     """
-    pedigree, params = inputs.pedigree, inputs.params
+    pedigree, vc = inputs.pedigree, inputs.sim.vc
     mother, father = parent_rows(pedigree)
     ids, twin = pedigree["id"].to_numpy(), pedigree["twin"].to_numpy()
     one_per_mz = (twin < 0) | (ids < twin)
     scale = _mendelian_scale(pedigree, mother, father)
     cells: dict[str, dict[str, Any]] = {}
     for t in (1, 2):
-        a = float(params[f"A{t}"])
+        a = float(vc.A[t - 1])
         if a <= 0:
             continue
         residual = _residual(pedigree, f"A{t}", mother, father, 0.5, 0.5)
@@ -205,15 +205,14 @@ def run_household_draw(inputs: RepInputs) -> dict[str, Any]:
         ``{"scope", "cells", "summary"}`` with cells ``trait{t}_PHS``, each
         carrying ``linked_household_share``.
     """
-    pedigree, params = inputs.pedigree, inputs.params
+    pedigree, sim = inputs.pedigree, inputs.sim
     mother, father = parent_rows(pedigree)
     cells: dict[str, dict[str, Any]] = {}
     linked = None
     for t in (1, 2):
-        if float(params[f"C{t}"]) <= 0:
+        if float(sim.vc.C[t - 1]) <= 0:
             continue
-        b_m = float(params.get(f"Ctm_maternal{t}", 0.0))
-        b_f = float(params.get(f"Ctm_paternal{t}", 0.0))
+        b_m, b_f = sim.c_transmission.coefficients(t)
         draw = _residual(pedigree, f"C{t}", mother, father, b_m, b_f)
         not_applicable = _degenerate(draw, pedigree[f"C{t}"].to_numpy().astype(np.float64))
         if linked is None:

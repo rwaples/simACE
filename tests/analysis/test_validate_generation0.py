@@ -40,6 +40,9 @@ PARAMS = dict(
     E2=0.3,
     rA=0.3,
     rC=0.5,
+    rE=0.0,
+    assort1=0.0,
+    assort2=0.0,
 )
 
 

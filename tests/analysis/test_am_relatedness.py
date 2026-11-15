@@ -11,6 +11,7 @@ from simace.analysis.quality.am_relatedness import (
     observed_mate_correlations,
 )
 from simace.simulation.simulate import run_simulation
+from tests.conftest import sim_params
 
 
 class TestExpectedFormulas:
@@ -37,21 +38,23 @@ class TestExpectedFormulas:
 
 class TestMode:
     def test_modes(self):
-        assert am_relatedness_mode({"assort1": 0.0, "assort2": 0.0}, 1) == "none"
-        assert am_relatedness_mode({"assort1": 0.5, "assort2": 0.0}, 1) == "single"
-        assert am_relatedness_mode({"assort1": 0.5, "assort2": 0.0}, 2) == "none"
-        assert am_relatedness_mode({"assort1": 0.5, "assort2": 0.5}, 1) == "bivariate"
+        assert am_relatedness_mode(sim_params({"assort1": 0.0, "assort2": 0.0}).assortment, 1) == "none"
+        assert am_relatedness_mode(sim_params({"assort1": 0.5, "assort2": 0.0}).assortment, 1) == "single"
+        assert am_relatedness_mode(sim_params({"assort1": 0.5, "assort2": 0.0}).assortment, 2) == "none"
+        assert am_relatedness_mode(sim_params({"assort1": 0.5, "assort2": 0.5}).assortment, 1) == "bivariate"
 
     def test_wright_fisher_is_none(self):
-        assert am_relatedness_mode({"assort1": 0.5, "mating_model": "wright_fisher"}, 1) == "none"
+        assert (
+            am_relatedness_mode(sim_params({"assort1": 0.5, "mating_model": "wright_fisher"}).assortment, 1) == "none"
+        )
 
     def test_matrix_diagonal_replaces_scalars(self):
         """The simulator mates on the matrix diagonal, whatever assort1/assort2 say (#93)."""
         matrix_only = {"assort1": 0.0, "assort2": 0.0, "assort_matrix": [[0.4, 0.0], [0.0, 0.0]]}
-        assert am_relatedness_mode(matrix_only, 1) == "single"
-        assert am_relatedness_mode(matrix_only, 2) == "none"
+        assert am_relatedness_mode(sim_params(matrix_only).assortment, 1) == "single"
+        assert am_relatedness_mode(sim_params(matrix_only).assortment, 2) == "none"
         both = {"assort1": 0.0, "assort2": 0.0, "assort_matrix": [[0.4, 0.1], [0.1, 0.3]]}
-        assert am_relatedness_mode(both, 2) == "bivariate"
+        assert am_relatedness_mode(sim_params(both).assortment, 2) == "bivariate"
 
 
 def _params(**over):
@@ -84,7 +87,7 @@ class TestIntegration:
         """Reported, not asserted: `simace validate`'s mendelian_residual tests the inheritance (ADR 0029)."""
         p = _params()
         df = run_simulation(**p).pedigree
-        rep = build_quality_report(df, p)
+        rep = build_quality_report(df, sim_params(p))
         fs = rep["heritability"]["dz_sibling_A1_correlation"]
         hs = rep["half_sibs"]["half_sib_A1_correlation"]
         assert fs.get("informational") is True
@@ -103,7 +106,7 @@ class TestIntegration:
     def test_no_am_keeps_random_mating_expectation(self):
         p = _params(assort1=0.0)
         df = run_simulation(**p).pedigree
-        rep = build_quality_report(df, p)
+        rep = build_quality_report(df, sim_params(p))
         assert rep["heritability"]["dz_sibling_A1_correlation"]["expected"] == pytest.approx(0.5)
         assert rep["half_sibs"]["half_sib_A1_correlation"]["expected"] == pytest.approx(0.25)
 
@@ -112,7 +115,7 @@ class TestIntegration:
         are reported informationally (no pass/fail) rather than scored."""
         p = _params(assort2=0.5)
         df = run_simulation(**p).pedigree
-        rep = build_quality_report(df, p)
+        rep = build_quality_report(df, sim_params(p))
         fs = rep["heritability"]["dz_sibling_A1_correlation"]
         hs = rep["half_sibs"]["half_sib_A1_correlation"]
         # informational: no "passed" key, observed value still reported
@@ -131,16 +134,14 @@ class TestIntegration:
         p_scalar = _params(assort_matrix=matrix)
         df = run_simulation(**p_matrix).pedigree
         assert df.equals(run_simulation(**p_scalar).pedigree)
-        reports = [build_quality_report(df, p) for p in (p_matrix, p_scalar)]
-        for report in reports:
-            del report["parameters"]
+        reports = [build_quality_report(df, sim_params(p)) for p in (p_matrix, p_scalar)]
         assert repr(reports[0]) == repr(reports[1])  # repr: NaN observations compare equal
 
     def test_variance_a_reported_informational_under_am(self):
         """variance_A is reported (not asserted) under AM; C/E stay scored."""
         p = _params()
         df = run_simulation(**p).pedigree
-        rep = build_quality_report(df, p)
+        rep = build_quality_report(df, sim_params(p))
         v_a = rep["statistical"]["variance_A1"]
         assert "passed" not in v_a
         assert v_a.get("informational") is True
@@ -154,7 +155,7 @@ class TestIntegration:
         Var(A)(1-mu_A)/V_P, which is below the configured A."""
         p = _params(p_mztwin=0.05, G_ped=12, G_sim=12, assort1=0.6)
         df = run_simulation(**p).pedigree
-        rep = build_quality_report(df, p)
+        rep = build_quality_report(df, sim_params(p))
         fal = rep["heritability"]["falconer_estimate_trait1"]
         assert fal["passed"], fal["details"]
         assert "AM-biased" in fal["details"]
@@ -163,12 +164,12 @@ class TestIntegration:
     def test_genetic_mate_correlation_reported(self):
         """validate_assortative_mating emits the genetic mate correlation mu_A."""
         p = _params(assort1=0.6)
-        am = build_quality_report(run_simulation(**p).pedigree, p)["assortative_mating"]
+        am = build_quality_report(run_simulation(**p).pedigree, sim_params(p))["assortative_mating"]
         assert "mate_corr_A1" in am
         assert am["mate_corr_A1"]["observed"] > 0.1  # AM induces genetic mate corr
 
         p0 = _params(assort1=0.0)
-        am0 = build_quality_report(run_simulation(**p0).pedigree, p0)["assortative_mating"]
+        am0 = build_quality_report(run_simulation(**p0).pedigree, sim_params(p0))["assortative_mating"]
         assert abs(am0["mate_corr_A1"]["observed"]) < 0.1  # no AM -> ~0
 
     def test_observed_mate_correlations_positive_under_am(self):

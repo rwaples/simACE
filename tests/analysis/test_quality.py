@@ -27,6 +27,7 @@ from simace.core.pedigree_arrays import PedigreeArrays
 from simace.simulation.assortment import AssortmentPlan
 from simace.simulation.params import Assortment, Span
 from simace.simulation.simulate import resolve_per_gen_param, run_simulation
+from tests.conftest import mating_records, sim_params
 
 # ---------------------------------------------------------------------------
 # Module-scoped fixtures (simulation runs once per file)
@@ -84,7 +85,9 @@ def val_mates(val_pedigree, val_mate_pedigree):
 
 @pytest.fixture(scope="module")
 def heritability_result(val_pedigree, val_params, val_ped, val_mate_pedigree, val_sibling_moments, val_mates):
-    return validate_heritability(val_pedigree, val_params, val_ped, val_mate_pedigree, val_sibling_moments, val_mates)
+    return validate_heritability(
+        val_pedigree, sim_params(val_params), val_ped, val_mate_pedigree, val_sibling_moments, val_mates
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -126,11 +129,11 @@ def _with_column_values(df: pl.DataFrame, col: str, values: np.ndarray) -> pl.Da
 
 class TestValidateStructural:
     def test_all_checks_pass(self, val_pedigree, val_params, val_ped):
-        result = validate_structural(val_pedigree, val_params, val_ped)
+        result = validate_structural(val_pedigree, sim_params(val_params), val_ped)
         _all_passed(result)
 
     def test_expected_keys(self, val_pedigree, val_params, val_ped):
-        result = validate_structural(val_pedigree, val_params, val_ped)
+        result = validate_structural(val_pedigree, sim_params(val_params), val_ped)
         assert "id_integrity" in result
         assert "parent_references" in result
         assert "sex_parent_consistency" in result
@@ -139,11 +142,11 @@ class TestValidateStructural:
 
 class TestValidateTwins:
     def test_all_checks_pass(self, val_pedigree, val_params, val_ped):
-        result = validate_twins(val_pedigree, val_params, val_ped)
+        result = validate_twins(val_pedigree, sim_params(val_params), val_ped)
         _all_passed(result)
 
     def test_twin_rate_present(self, val_pedigree, val_params, val_ped):
-        result = validate_twins(val_pedigree, val_params, val_ped)
+        result = validate_twins(val_pedigree, sim_params(val_params), val_ped)
         assert "twin_rate" in result
         assert "observed_rate" in result["twin_rate"]
 
@@ -172,7 +175,7 @@ class TestValidateTwins:
             rE=0.0,
             mating_model="wright_fisher",
         ).pedigree
-        result = validate_twins(wf_ped, wf_params, PedigreeArrays.from_frame(wf_ped))
+        result = validate_twins(wf_ped, sim_params(wf_params), PedigreeArrays.from_frame(wf_ped))
         assert result["twin_rate"]["passed"] is True
         assert result["twin_rate"]["expected_rate"] == 0.0
         assert result["twin_rate"]["observed_rate"] == 0.0
@@ -188,7 +191,7 @@ class TestValidateTwins:
         violation.
         """
         wf_params = {"mating_model": "wright_fisher", "p_mztwin": 0.02}
-        result = validate_twins(val_pedigree, wf_params, val_ped)
+        result = validate_twins(val_pedigree, sim_params(wf_params), val_ped)
         assert (val_pedigree["twin"] != -1).any(), "fixture sanity: pedigree must contain twins"
         rate = result["twin_rate"]
         assert rate["passed"] is False
@@ -199,11 +202,11 @@ class TestValidateTwins:
 
 class TestValidateHalfSibs:
     def test_passes(self, val_pedigree, val_params, val_sibling_moments, val_mates):
-        result = validate_half_sibs(val_pedigree, val_params, val_sibling_moments, val_mates)
+        result = validate_half_sibs(val_pedigree, sim_params(val_params), val_sibling_moments, val_mates)
         _all_passed(result)
 
     def test_numeric_fields(self, val_pedigree, val_params, val_sibling_moments, val_mates):
-        result = validate_half_sibs(val_pedigree, val_params, val_sibling_moments, val_mates)
+        result = validate_half_sibs(val_pedigree, sim_params(val_params), val_sibling_moments, val_mates)
         for value in result.values():
             if isinstance(value, dict) and "observed" in value:
                 assert isinstance(value["observed"], (int, float))
@@ -211,11 +214,11 @@ class TestValidateHalfSibs:
 
 class TestValidateConsanguineous:
     def test_passes(self, val_pedigree, val_params, val_ped):
-        result = validate_consanguineous_matings(val_pedigree, val_params, val_ped)
+        result = validate_consanguineous_matings(val_pedigree, val_ped)
         _all_passed(result)
 
     def test_non_negative_counts(self, val_pedigree, val_params, val_ped):
-        result = validate_consanguineous_matings(val_pedigree, val_params, val_ped)
+        result = validate_consanguineous_matings(val_pedigree, val_ped)
         for key, value in result.items():
             if isinstance(value, dict):
                 for k, v in value.items():
@@ -225,29 +228,29 @@ class TestValidateConsanguineous:
 
 class TestValidateStatistical:
     def test_all_checks_pass(self, val_pedigree, val_params):
-        result = validate_statistical(val_pedigree, val_params)
+        result = validate_statistical(val_pedigree, sim_params(val_params))
         _all_passed(result)
 
     def test_founder_e_without_g_sim_is_read_at_the_schedule_span_burn_in(self, val_pedigree, val_params):
         """With ``G_sim`` absent, G_sim falls back to G_ped and burn-in is 0, as in ``generation0`` (#79)."""
         params = {k: v for k, v in val_params.items() if k != "G_sim"} | {"E1": {0: 0.3, 1: 0.6}}
-        assert validate_statistical(val_pedigree, params)["variance_E1"]["expected"] == 0.3
+        assert validate_statistical(val_pedigree, sim_params(params))["variance_E1"]["expected"] == 0.3
 
     def test_variance_keys(self, val_pedigree, val_params):
-        result = validate_statistical(val_pedigree, val_params)
+        result = validate_statistical(val_pedigree, sim_params(val_params))
         for comp in ["A1", "C1", "E1", "A2", "C2", "E2"]:
             assert f"variance_{comp}" in result
 
     def test_total_variance_and_rc_are_reported_only(self, val_pedigree, val_params):
         """`simace validate` tests them (ADR 0030); Analyze keeps their values for `truth`."""
-        result = validate_statistical(val_pedigree, val_params)
+        result = validate_statistical(val_pedigree, sim_params(val_params))
         for key in ("total_variance_trait1", "total_variance_trait2", "cross_trait_rC"):
             assert result[key]["informational"] is True
             assert "passed" not in result[key]
             assert np.isfinite(result[key]["observed"])
 
     def test_cross_trait_rA_is_scored_under_random_mating(self, val_pedigree, val_params):
-        assert validate_statistical(val_pedigree, val_params)["cross_trait_rA"]["passed"] is True
+        assert validate_statistical(val_pedigree, sim_params(val_params))["cross_trait_rA"]["passed"] is True
 
     @pytest.mark.parametrize(
         "assort",
@@ -260,8 +263,8 @@ class TestValidateStatistical:
     def test_cross_trait_rA_is_informational_under_assortative_mating(self, val_pedigree, val_params, assort):
         # AM shifts the founders' rA away from the configured value, as it
         # inflates Var(A), so it is reported with its observed value only.
-        result = validate_statistical(val_pedigree, {**val_params, **assort})
-        random_mating = validate_statistical(val_pedigree, val_params)
+        result = validate_statistical(val_pedigree, sim_params({**val_params, **assort}))
+        random_mating = validate_statistical(val_pedigree, sim_params(val_params))
         cross = result["cross_trait_rA"]
         assert cross.get("informational") is True
         assert "passed" not in cross
@@ -272,7 +275,7 @@ class TestValidateStatistical:
     def test_cross_trait_rA_stays_scored_under_wright_fisher(self, val_pedigree, val_params):
         # Wright-Fisher pairs at random whatever assortment it inherits.
         params = {**val_params, "assort1": 0.3, "assort2": 0.3, "mating_model": "wright_fisher"}
-        assert "passed" in validate_statistical(val_pedigree, params)["cross_trait_rA"]
+        assert "passed" in validate_statistical(val_pedigree, sim_params(params))["cross_trait_rA"]
 
 
 class TestValidateHeritability:
@@ -283,19 +286,19 @@ class TestValidateHeritability:
 
 class TestComputePerGenerationStats:
     def test_gen_size(self, val_pedigree, val_params):
-        result = compute_per_generation_stats(val_pedigree, val_params)
+        result = compute_per_generation_stats(val_pedigree, sim_params(val_params))
         for g in range(1, 4):
             assert result[f"generation_{g}"]["n"] == 1000
 
     def test_liability_stats_present(self, val_pedigree, val_params):
-        result = compute_per_generation_stats(val_pedigree, val_params)
+        result = compute_per_generation_stats(val_pedigree, sim_params(val_params))
         gen1 = result["generation_1"]
         assert "liability1_mean" in gen1
         assert "liability1_variance" in gen1
         assert "A1_var" in gen1
 
     def test_covariance_primitives_present(self, val_pedigree, val_params):
-        result = compute_per_generation_stats(val_pedigree, val_params)
+        result = compute_per_generation_stats(val_pedigree, sim_params(val_params))
         gen1 = result["generation_1"]
         assert "A1_cov_non_genetic" in gen1
         assert "A1_cov_C" in gen1
@@ -306,7 +309,7 @@ class TestComputePerGenerationStats:
         c = a.copy()
         e = np.zeros_like(a)
         df = _component_df(a, c, e)
-        result = compute_per_generation_stats(df, {"N": len(df), "G_ped": 1})["generation_1"]
+        result = compute_per_generation_stats(df, sim_params({"N": len(df), "G_ped": 1}))["generation_1"]
         expected = np.mean((a - a.mean()) * ((c + e) - (c + e).mean()))
         assert result["A1_cov_non_genetic"] == expected
         assert result["A1_cov_non_genetic"] == result["A1_var"]
@@ -316,7 +319,7 @@ class TestComputePerGenerationStats:
         c = np.array([-1.0, 1.0, -1.0, 1.0])
         e = np.zeros_like(a)
         df = _component_df(a, c, e)
-        result = compute_per_generation_stats(df, {"N": len(df), "G_ped": 1})["generation_1"]
+        result = compute_per_generation_stats(df, sim_params({"N": len(df), "G_ped": 1}))["generation_1"]
         assert result["A1_cov_non_genetic"] == 0.0
 
     def test_constructed_non_genetic_equals_a_gives_snp_like_identity(self):
@@ -324,7 +327,7 @@ class TestComputePerGenerationStats:
         c = a.copy()
         e = np.zeros_like(a)
         df = _component_df(a, c, e)
-        result = compute_per_generation_stats(df, {"N": len(df), "G_ped": 1})["generation_1"]
+        result = compute_per_generation_stats(df, sim_params({"N": len(df), "G_ped": 1}))["generation_1"]
         derived = ge_h2_metrics(result["A1_var"], result["liability1_variance"], result["A1_cov_non_genetic"])
         assert result["A1_cov_non_genetic"] == result["A1_var"]
         assert derived.ge_cov_fraction == 2 * result["A1_var"] / result["liability1_variance"]
@@ -333,11 +336,11 @@ class TestComputePerGenerationStats:
 
 class TestValidatePopulation:
     def test_all_checks_pass(self, val_pedigree, val_params):
-        result = validate_population(val_pedigree, val_params)
+        result = validate_population(val_pedigree, sim_params(val_params))
         _all_passed(result)
 
     def test_generation_count_reports_the_number_of_labels(self, val_pedigree, val_params):
-        count = validate_population(val_pedigree, val_params)["generation_count"]
+        count = validate_population(val_pedigree, sim_params(val_params))["generation_count"]
         assert count["passed"] is True
         assert count["observed"] == count["expected"] == val_params["G_ped"]
 
@@ -354,7 +357,7 @@ class TestValidatePopulation:
     def test_generation_count_fails_on_wrong_generation_labels(self, val_pedigree, val_params, relabel):
         generation = relabel(val_pedigree["generation"].to_numpy())
         ped = _with_column_values(val_pedigree, "generation", generation)
-        result = validate_population(ped, val_params)
+        result = validate_population(ped, sim_params(val_params))
         assert result["generation_count"]["passed"] is False
         # The id ranges are untouched, so only the label check sees the damage.
         assert result["generation_sizes"]["passed"] is True
@@ -362,7 +365,7 @@ class TestValidatePopulation:
 
 class TestComputeFamilySizeDistribution:
     def test_structure(self, val_pedigree, val_params):
-        result = compute_family_size_distribution(val_pedigree, val_params)
+        result = compute_family_size_distribution(val_pedigree)
         assert "mother" in result
         assert "father" in result
         for parent_type in ["mother", "father"]:
@@ -372,7 +375,7 @@ class TestComputeFamilySizeDistribution:
             assert "n_parents" in entry
 
     def test_mean_around_two(self, val_pedigree, val_params):
-        result = compute_family_size_distribution(val_pedigree, val_params)
+        result = compute_family_size_distribution(val_pedigree)
         assert result["mother"]["mean"] == pytest.approx(2.0, abs=0.5)
 
 
@@ -381,7 +384,7 @@ class TestRecordedMatings:
 
     def test_one_entry_per_recorded_parents_generation_after_burn_in(self, val_params):
         params = {**val_params, "G_sim": 6, "G_ped": 4, "assort1": {0: 0.1, 4: 0.4}, "assort2": 0.3}
-        matings = recorded_matings(params)
+        matings = recorded_matings(*mating_records(params))
         assert [m.parents_generation for m in matings] == [0, 1, 2]
         assert [m.expected[0, 0] for m in matings] == pytest.approx([0.1, 0.4, 0.4])
 
@@ -412,38 +415,38 @@ class TestRecordedMatings:
             E2_per_gen=[params["E2"]] * 6,
             G_sim=6,
         )
-        for m in recorded_matings(params):
+        for m in recorded_matings(*mating_records(params)):
             R_mf = plan.for_generation(m.parents_generation + 3)[3]
             np.testing.assert_allclose(m.expected, R_mf)
             assert m.cross_scored
 
     def test_a_single_recorded_generation_has_no_matings(self, val_params):
-        assert recorded_matings({**val_params, "G_sim": 1, "G_ped": 1, "assort1": 0.3}) == []
+        assert recorded_matings(*mating_records({**val_params, "G_sim": 1, "G_ped": 1, "assort1": 0.3})) == []
 
     def test_assort_matrix_diagonal_overrides_the_scalar_assortment(self, val_params):
         """The simulator mates on the matrix diagonal; params.yaml echoes the raw scalars."""
         matrix = [[0.3, 0.05], [0.05, 0.4]]
         params = {**val_params, "assort1": 0.0, "assort2": 0.0, "assort_matrix": matrix}
-        for m in recorded_matings(params):
+        for m in recorded_matings(*mating_records(params)):
             np.testing.assert_allclose(m.expected, matrix)
             assert m.cross_scored
 
     def test_single_trait_assortment_induces_the_other_cells(self, val_params):
         params = {**val_params, "rA": 1.0, "rC": 0.0, "A1": 0.5, "C1": 0.0, "E1": 0.5}
         params |= {"A2": 0.5, "C2": 0.0, "E2": 0.5, "assort1": 0.0, "assort2": 0.8}
-        for m in recorded_matings(params):
+        for m in recorded_matings(*mating_records(params)):
             np.testing.assert_allclose(m.expected, [[0.2, 0.4], [0.4, 0.8]])
             assert not m.cross_scored
 
     def test_wright_fisher_targets_are_zero_whatever_assortment_it_inherits(self, val_params):
         params = {**val_params, "mating_model": "wright_fisher", "assort1": 0.3, "assort2": 0.3}
-        for m in recorded_matings(params):
+        for m in recorded_matings(*mating_records(params)):
             np.testing.assert_array_equal(m.expected, np.zeros((2, 2)))
             assert not m.cross_scored
 
     def test_cross_is_scored_only_where_both_traits_assort(self, val_params):
         params = {**val_params, "G_sim": 4, "G_ped": 4, "assort1": {0: 0.0, 2: 0.3}, "assort2": 0.3}
-        assert [m.cross_scored for m in recorded_matings(params)] == [False, True, True]
+        assert [m.cross_scored for m in recorded_matings(*mating_records(params))] == [False, True, True]
 
 
 def _assert_information(result: dict) -> None:
@@ -456,7 +459,7 @@ def _assert_information(result: dict) -> None:
 
 class TestValidateAssortativeMating:
     def test_zero_assort_reports_information_against_zero(self, val_params, val_mates):
-        result = validate_assortative_mating(val_params, val_mates)
+        result = validate_assortative_mating(sim_params(val_params), val_mates)
         _assert_information(result)
         assert set(result) == {"mate_corr_liability1", "mate_corr_liability2", "mate_corr_A1", "mate_corr_A2"}
         for t in (1, 2):
@@ -467,7 +470,7 @@ class TestValidateAssortativeMating:
 
     def test_cross_trait_when_both_assort(self, val_mates, val_params):
         params = {**val_params, "assort1": 0.2, "assort2": 0.3}
-        result = validate_assortative_mating(params, val_mates)
+        result = validate_assortative_mating(sim_params(params), val_mates)
         _assert_information(result)
         for key, cell in (("mate_corr_cross_12", (0, 1)), ("mate_corr_cross_21", (1, 0))):
             assert "expected" in result[key]
@@ -480,19 +483,19 @@ class TestValidateAssortativeMating:
             "assort2": 0.3,
             "assort_matrix": [[0.2, 0.05], [0.05, 0.3]],
         }
-        result = validate_assortative_mating(params, val_mates)
+        result = validate_assortative_mating(sim_params(params), val_mates)
         assert result["mate_corr_cross_12"]["expected"] == pytest.approx(0.05)
 
     def test_liability_target_reads_the_assort_matrix_diagonal(self, val_mates, val_params):
         params = {**val_params, "assort_matrix": [[0.2, 0.05], [0.05, 0.3]]}
-        result = validate_assortative_mating(params, val_mates)
+        result = validate_assortative_mating(sim_params(params), val_mates)
         assert result["mate_corr_liability1"]["expected"] == pytest.approx(0.2)
         assert result["mate_corr_liability2"]["expected"] == pytest.approx(0.3)
 
     def test_cross_trait_expected_includes_unique_environment(self, val_mates, val_params):
         """rho_w carries rE * sqrt(E1 * E2), as the simulator's does (#61)."""
         params = {**val_params, "assort1": 0.2, "assort2": 0.3, "rA": 0.0, "rC": 0.0, "rE": 0.8}
-        result = validate_assortative_mating(params, val_mates)
+        result = validate_assortative_mating(sim_params(params), val_mates)
         rho_w = 0.8 * np.sqrt(params["E1"] * params["E2"])
         for key in ("mate_corr_cross_12", "mate_corr_cross_21"):
             assert result[key]["expected"] == pytest.approx(rho_w * np.sqrt(0.2 * 0.3))
@@ -508,7 +511,7 @@ class TestValidateAssortativeMating:
     def test_cross_trait_has_no_pooled_target_across_generations(self, val_mates, val_params, over):
         """A pooled cross-trait Pearson mixes targets or trait scales (#61, #64)."""
         params = {**val_params, "assort1": 0.2, "assort2": 0.3, **over}
-        result = validate_assortative_mating(params, val_mates)
+        result = validate_assortative_mating(sim_params(params), val_mates)
         _assert_information(result)
         for key in ("mate_corr_cross_12", "mate_corr_cross_21"):
             assert "expected" not in result[key]
@@ -527,7 +530,7 @@ class TestValidateAssortativeMating:
         self, val_mates, val_params, over
     ):
         params = {**val_params, "assort1": 0.2, "assort2": 0.3, **over}
-        result = validate_assortative_mating(params, val_mates)
+        result = validate_assortative_mating(sim_params(params), val_mates)
         rho_w = (
             params["rA"] * np.sqrt(params["A1"] * params["A2"])
             + params["rC"] * np.sqrt(params["C1"] * params["C2"])
@@ -538,7 +541,7 @@ class TestValidateAssortativeMating:
 
     def test_per_generation_assort1_drops_only_its_own_target(self, val_mates, val_params):
         params = {**val_params, "rA": 0.0, "rC": 0.0, "assort1": {0: 0.1, 2: 0.3}, "assort2": 0.2}
-        result = validate_assortative_mating(params, val_mates)
+        result = validate_assortative_mating(sim_params(params), val_mates)
         _assert_information(result)
         assert "expected" not in result["mate_corr_liability1"]
         assert result["mate_corr_liability1"]["observed"] is not None
@@ -550,7 +553,7 @@ class TestValidateAssortativeMating:
         """Assortment on trait 2 alone induces the other cells; their nominal target is biased (ADR 0031)."""
         params = {**val_params, "rA": 1.0, "rC": 0.0, "A1": 0.5, "C1": 0.0, "E1": 0.5}
         params |= {"A2": 0.5, "C2": 0.0, "E2": 0.5, "assort1": 0.0, "assort2": 0.8}
-        result = validate_assortative_mating(params, val_mates)
+        result = validate_assortative_mating(sim_params(params), val_mates)
         _assert_information(result)
         assert result["mate_corr_liability2"]["expected"] == pytest.approx(0.8)
         for key in ("mate_corr_liability1", "mate_corr_cross_12", "mate_corr_cross_21"):
@@ -560,7 +563,7 @@ class TestValidateAssortativeMating:
     def test_a_trait_random_in_one_generation_has_no_target(self, val_mates, val_params):
         """Its random generation is induced by the other trait's assortment there."""
         params = {**val_params, "rA": 0.0, "rC": 0.0, "assort1": {0: 0.0, 2: 0.3}, "assort2": 0.2}
-        result = validate_assortative_mating(params, val_mates)
+        result = validate_assortative_mating(sim_params(params), val_mates)
         assert "expected" not in result["mate_corr_liability1"]
         assert result["mate_corr_liability2"]["expected"] == pytest.approx(0.2)
 
@@ -573,7 +576,7 @@ class TestValidateAssortativeMating:
             "assort_matrix": [[0.2, 0.05], [0.05, 0.3]],
             "E1": {0: 0.3, 2: 0.2},
         }
-        result = validate_assortative_mating(params, val_mates)
+        result = validate_assortative_mating(sim_params(params), val_mates)
         for key in ("mate_corr_cross_12", "mate_corr_cross_21"):
             assert result[key]["expected"] == pytest.approx(0.05)
 
@@ -595,7 +598,7 @@ class TestValidateAssortativeMating:
             "assort1": 0.8,
             "assort2": 0.8,
         }
-        result = build_quality_report(run_simulation(**params).pedigree, params)["assortative_mating"]
+        result = build_quality_report(run_simulation(**params).pedigree, sim_params(params))["assortative_mating"]
         _assert_information(result)
         for key in ("mate_corr_cross_12", "mate_corr_cross_21"):
             assert result[key]["expected"] == pytest.approx(0.8 * 0.6 * 0.8)
@@ -609,7 +612,7 @@ class TestValidateAssortativeMating:
 
 @pytest.fixture(scope="module")
 def quality_report(val_pedigree, val_params):
-    return build_quality_report(val_pedigree, val_params)
+    return build_quality_report(val_pedigree, sim_params(val_params))
 
 
 class TestBuildQualityReport:
@@ -631,13 +634,8 @@ class TestBuildQualityReport:
             "consanguineous_matings",
             "summary",
             "family_size_distribution",
-            "parameters",
         ):
             assert cat in quality_report, f"missing category {cat!r}"
-
-    def test_parameters_round_trip(self, quality_report, val_params):
-        assert quality_report["parameters"]["A1"] == val_params["A1"]
-        assert quality_report["parameters"]["seed"] == val_params["seed"]
 
 
 # ---------------------------------------------------------------------------
@@ -683,7 +681,7 @@ def founders_only_pedigree():
 
 @pytest.fixture(scope="module")
 def founders_only_report(founders_only_pedigree):
-    return build_quality_report(founders_only_pedigree, _FOUNDERS_ONLY_PARAMS)
+    return build_quality_report(founders_only_pedigree, sim_params(_FOUNDERS_ONLY_PARAMS))
 
 
 class TestNothingToTestIsInformational:
@@ -694,15 +692,18 @@ class TestNothingToTestIsInformational:
     def test_twin_rate_without_twins_is_still_scored(self, founders_only_pedigree):
         # Zero twins is evidence about the rate, so this check keeps its verdict.
         ped = PedigreeArrays.from_frame(founders_only_pedigree)
-        assert validate_twins(founders_only_pedigree, _FOUNDERS_ONLY_PARAMS, ped)["twin_rate"]["passed"] is True
+        assert (
+            validate_twins(founders_only_pedigree, sim_params(_FOUNDERS_ONLY_PARAMS), ped)["twin_rate"]["passed"]
+            is True
+        )
         high = {**_FOUNDERS_ONLY_PARAMS, "p_mztwin": 0.05}
-        assert validate_twins(founders_only_pedigree, high, ped)["twin_rate"]["passed"] is False
+        assert validate_twins(founders_only_pedigree, sim_params(high), ped)["twin_rate"]["passed"] is False
 
     def test_twin_rate_without_non_founders_is_informational(self):
         params = {**_FOUNDERS_ONLY_PARAMS, "p_mztwin": 0.05}
         ped = run_simulation(**params).pedigree
         assert (ped["twin"] != -1).any(), "fixture sanity: founders must contain twins"
-        _assert_informational(validate_twins(ped, params, PedigreeArrays.from_frame(ped))["twin_rate"])
+        _assert_informational(validate_twins(ped, sim_params(params), PedigreeArrays.from_frame(ped))["twin_rate"])
 
     def test_e1_independence_without_sibling_groups_is_informational(self, val_pedigree, val_params):
         # Keep one child per mother, so no mother has two children to compare.
@@ -711,7 +712,7 @@ class TestNothingToTestIsInformational:
             subset="mother", keep="first", maintain_order=True
         )
         ped = pl.concat([founders, only_children])
-        _assert_informational(validate_statistical(ped, val_params)["e1_independence"])
+        _assert_informational(validate_statistical(ped, sim_params(val_params))["e1_independence"])
 
     @pytest.mark.parametrize(
         ("assort", "traits"),
@@ -721,7 +722,7 @@ class TestNothingToTestIsInformational:
         ],
     )
     def test_am_equilibrium_outside_the_recursion_is_informational(self, val_pedigree, val_params, assort, traits):
-        result = validate_am_equilibrium(val_pedigree, {**val_params, **assort})
+        result = validate_am_equilibrium(val_pedigree, sim_params({**val_params, **assort}))
         for t in traits:
             _assert_informational(result[f"am_equilibrium_A{t}"])
 
@@ -729,7 +730,7 @@ class TestNothingToTestIsInformational:
         scored = [
             name
             for category, checks in founders_only_report.items()
-            if category not in ("per_generation", "summary", "family_size_distribution", "parameters")
+            if category not in ("per_generation", "summary", "family_size_distribution")
             for name, result in checks.items()
             if "passed" in result
         ]
@@ -754,7 +755,7 @@ class TestValidateNegativePaths:
         ids = ped["id"].to_numpy().copy()
         ids[5] = ids.max() + 99
         ped = _with_column_values(ped, "id", ids)
-        result = validate_structural(ped, self._tiny_params(), PedigreeArrays.from_frame(ped))
+        result = validate_structural(ped, sim_params(self._tiny_params()), PedigreeArrays.from_frame(ped))
         assert result["id_integrity"]["passed"] is False
 
     def test_dangling_parent_id_fails_parent_references(self):
@@ -765,7 +766,7 @@ class TestValidateNegativePaths:
         non_founder_idx = np.flatnonzero(mother != -1)[0]
         mother[non_founder_idx] = params["N"] * params["G_ped"] + 50
         ped = _with_column_values(ped, "mother", mother)
-        result = validate_structural(ped, params, PedigreeArrays.from_frame(ped))
+        result = validate_structural(ped, sim_params(params), PedigreeArrays.from_frame(ped))
         assert result["parent_references"]["passed"] is False
 
     def test_wrong_parent_sex_fails_sex_consistency(self):
@@ -774,7 +775,7 @@ class TestValidateNegativePaths:
         sex = ped["sex"].to_numpy().copy()
         sex[ped["id"].to_numpy() == mother_id] = 1  # 1 = male
         ped = _with_column_values(ped, "sex", sex)
-        result = validate_structural(ped, self._tiny_params(), PedigreeArrays.from_frame(ped))
+        result = validate_structural(ped, sim_params(self._tiny_params()), PedigreeArrays.from_frame(ped))
         assert result["sex_parent_consistency"]["passed"] is False
 
     def test_non_bidirectional_twin_fails_bidirectional_check(self):
@@ -790,7 +791,7 @@ class TestValidateNegativePaths:
         ped = _with_column_values(ped, "twin", twin)
         params = self._tiny_params()
         params["p_mztwin"] = 0.02
-        result = validate_twins(ped, params, PedigreeArrays.from_frame(ped))
+        result = validate_twins(ped, sim_params(params), PedigreeArrays.from_frame(ped))
         assert result["twin_bidirectional"]["passed"] is False
 
 
@@ -843,21 +844,19 @@ class TestValidateOnAscertainedPedigrees:
     def test_gapped_ids_do_not_raise(self, gapped_pedigree, val_params):
         ids = gapped_pedigree["id"].to_numpy()
         assert ids.max() >= len(ids), "fixture must have non-contiguous ids"
-        report = build_quality_report(gapped_pedigree, val_params)
+        report = build_quality_report(gapped_pedigree, sim_params(val_params))
         assert report["summary"]["checks_total"] > 0
 
     def test_severed_parents_do_not_raise(self, severed_pedigree, val_params):
         mother = severed_pedigree["mother"].to_numpy()
         father = severed_pedigree["father"].to_numpy()
         assert ((mother == -1) ^ (father == -1)).any(), "fixture must have one-parent rows"
-        report = build_quality_report(severed_pedigree, val_params)
+        report = build_quality_report(severed_pedigree, sim_params(val_params))
         assert report["summary"]["checks_total"] > 0
 
     def test_consanguinity_skips_rows_with_a_severed_parent(self, severed_pedigree, val_params):
         """A row with one parent has no complete mating, so it is not eligible."""
-        result = validate_consanguineous_matings(
-            severed_pedigree, val_params, PedigreeArrays.from_frame(severed_pedigree)
-        )
+        result = validate_consanguineous_matings(severed_pedigree, PedigreeArrays.from_frame(severed_pedigree))
         assert "consanguineous_count" in result
 
     def test_mate_correlation_drops_pairs_with_an_absent_parent(self, severed_pedigree, val_params):
@@ -868,6 +867,6 @@ class TestValidateOnAscertainedPedigrees:
         n_pairs = len(set(zip(mother[both].tolist(), father[both].tolist(), strict=True)))
         params = {**val_params, "assort1": 0.3, "assort2": 0.0}
         result = validate_assortative_mating(
-            params, mate_correlations(severed_pedigree, mate_pedigree(severed_pedigree))
+            sim_params(params), mate_correlations(severed_pedigree, mate_pedigree(severed_pedigree))
         )
         assert result["mate_corr_liability1"]["n_pairs"] == n_pairs

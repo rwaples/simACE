@@ -7,6 +7,7 @@ import pytest
 from simace.analysis.mate_correlation import mate_correlation_matrix, mate_pedigree
 from simace.analysis.stats import compute_mate_correlation
 from simace.simulation.mate_correlation import expected_mate_corr_matrix
+from tests.conftest import sim_params
 
 
 class TestExpectedMateCorr:
@@ -159,7 +160,7 @@ class TestPlotMateCorrelation:
         params = {"G_ped": 3, "assort1": 0.3, "assort2": 0.0, "rA": 0.5, "rC": 0.0, "A1": 0.5, "C1": 0.0, "A2": 0.5}
         params |= {"C2": 0.0}
         out = tmp_path / "mate_correlation.png"
-        plot_mate_correlation(stats, str(out), scenario="test", params=params)
+        plot_mate_correlation(stats, str(out), scenario="test", sim=sim_params(params))
         assert out.exists()
 
     def test_both_nonzero_no_crash(self, tmp_path):
@@ -172,7 +173,7 @@ class TestPlotMateCorrelation:
         params = {"G_ped": 3, "assort1": 0.3, "assort2": 0.5, "rA": 0.5, "rC": 0.3, "A1": 0.5, "C1": 0.2, "A2": 0.5}
         params |= {"C2": 0.2}
         out = tmp_path / "mate_correlation_both.png"
-        plot_mate_correlation(stats, str(out), scenario="test", params=params)
+        plot_mate_correlation(stats, str(out), scenario="test", sim=sim_params(params))
         assert out.exists()
 
     def test_expected_panel_spans_a_target_that_varies_by_generation(self, tmp_path, monkeypatch):
@@ -187,7 +188,7 @@ class TestPlotMateCorrelation:
         params = {"G_sim": 4, "G_ped": 4, "assort1": {0: 0.2, 2: 0.4}, "assort2": 0.0, "rA": 0.0, "A1": 0.5, "A2": 0.5}
         params |= {"C1": 0.0, "C2": 0.0, "E1": 0.5, "E2": 0.5}
         out = tmp_path / "mate_correlation_varying.png"
-        plot_liability.plot_mate_correlation(stats, str(out), scenario="test", params=params)
+        plot_liability.plot_mate_correlation(stats, str(out), scenario="test", sim=sim_params(params))
         expected, kw = heatmaps[0]
         assert expected[0, 0] == pytest.approx(0.3)
         assert kw["annot"][0, 0] == "0.20\u20130.40"
@@ -205,7 +206,7 @@ class TestPlotMateCorrelation:
         stats = [{"mate_correlation": {"matrix": [[0.5, 0.13], [0.13, 0.5]], "n_pairs": 100}}]
         params = {"G_ped": 4, "assort1": 0.5, "assort2": 0.5, "rA": 0.8, "A1": 0.5, "A2": 0.5, "C1": 0.0, "C2": 0.0}
         params |= {"rE": 0.0, "E1": {0: 0.1, 2: 5.0}, "E2": {0: 5.0, 2: 0.1}}
-        plot_liability.plot_mate_correlation(stats, str(tmp_path / "mc.png"), scenario="test", params=params)
+        plot_liability.plot_mate_correlation(stats, str(tmp_path / "mc.png"), scenario="test", sim=sim_params(params))
         assert "varies" not in axes[0].get_title()
         assert "simace validate" in axes[1].get_title()
 

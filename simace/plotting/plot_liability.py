@@ -34,6 +34,8 @@ if TYPE_CHECKING:
 
     import polars as pl
 
+    from simace.simulation.params import SimulationParams
+
 from simace.analysis.stats.censoring import confusion_rates
 from simace.plotting.plot_style import COLOR_AFFECTED, COLOR_FEMALE, COLOR_MALE, COLOR_UNAFFECTED  # noqa: F401
 from simace.plotting.plot_utils import (
@@ -751,7 +753,7 @@ def plot_mate_correlation(
     all_stats: list[dict],
     output_path: str | Path,
     scenario: str = "",
-    params: dict | None = None,
+    sim: SimulationParams | None = None,
 ) -> None:
     """Plot 2x2 heatmap of empirical mate liability correlations with expected values.
 
@@ -774,7 +776,7 @@ def plot_mate_correlation(
 
     obs = np.nanmean(np.stack(matrices), axis=0)
 
-    matings = recorded_matings(params) if params else []
+    matings = recorded_matings(sim.span, sim.vc, sim.assortment) if sim is not None else []
     targets = np.stack([m.expected for m in matings]) if matings else np.zeros((1, 2, 2))
     exp_lo, exp_hi = targets.min(axis=0), targets.max(axis=0)
     exp = (exp_lo + exp_hi) / 2

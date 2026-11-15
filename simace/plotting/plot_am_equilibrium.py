@@ -21,7 +21,6 @@ if TYPE_CHECKING:
 import matplotlib.pyplot as plt
 import numpy as np
 
-from simace.analysis.quality.assortative_mating import assortment_schedule, schedule_span
 from simace.plotting.plot_style import (
     COLOR_EXPECTED,
     COLOR_OBSERVED,
@@ -29,7 +28,7 @@ from simace.plotting.plot_style import (
     COLOR_UNAFFECTED,
     enable_value_gridlines,
 )
-from simace.plotting.plot_utils import finalize_plot, param_as_float, save_placeholder_plot
+from simace.plotting.plot_utils import finalize_plot, save_placeholder_plot
 from simace.simulation.am_equilibrium import am_equilibrium_variance, am_variance_trajectory
 
 logger = logging.getLogger(__name__)
@@ -62,15 +61,15 @@ def plot_am_equilibrium(
         save_placeholder_plot(output_path, "No per-generation data")
         return
 
-    params = all_views[0].get("parameters", {})
-    if params.get("mating_model", "standard") != "standard":
+    sim = all_views[0].get("sim")
+    if sim is not None and sim.mating_model != "standard":
         save_placeholder_plot(output_path, "No assortative mating (Wright-Fisher model)")
         return
 
-    schedule = assortment_schedule(params)
-    if not any(schedule[0]) and not any(schedule[1]):
+    if sim is None or not sim.assortment.any_active:
         save_placeholder_plot(output_path, "No assortative mating configured")
         return
+    schedule = sim.assortment.schedule
 
     gen_keys = sorted(per_gen_all[0].keys(), key=lambda k: int(k.split("_")[1]))
     generations = [int(k.split("_")[1]) for k in gen_keys]
@@ -79,7 +78,7 @@ def plot_am_equilibrium(
     # Map each recorded generation label g (1..G_ped) to its reproduce-step
     # count from founders: g + burnin. The final recorded generation therefore
     # sits at exactly G_sim steps.
-    g_sim, burnin = schedule_span(params)
+    g_sim, burnin = sim.span.G_sim, sim.span.burnin
 
     _fig, axes = plt.subplots(1, 2, figsize=(10, 5))
 
@@ -112,13 +111,11 @@ def plot_am_equilibrium(
                 )
 
         r_ho = schedule[t - 1][0]
-        A_base = param_as_float(params.get(f"A{t}"))
-        c_raw = params.get(f"C{t}")
-        e_raw = params.get(f"E{t}")
-        per_gen_env = isinstance(c_raw, dict) or isinstance(e_raw, dict) or len(set(schedule[t - 1])) > 1
+        A_base = float(sim.vc.A[t - 1])
+        per_gen_env = not sim.vc.scalar_E(t) or not sim.assortment.constant(t)
 
         if r_ho and A_base > 0 and not per_gen_env:
-            V_env = param_as_float(c_raw) + param_as_float(e_raw)
+            V_env = float(sim.vc.C[t - 1]) + sim.vc.E_per_gen(t, 1)[0]
             traj = am_variance_trajectory(A_base, V_env, r_ho, g_sim)
             steps = np.array([g + burnin for g in generations], dtype=int)
             predicted = traj[steps]

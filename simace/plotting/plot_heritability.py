@@ -20,6 +20,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from simace.simulation.params import SimulationParams
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -38,20 +40,6 @@ from simace.plotting.plot_utils import finalize_plot, save_placeholder_plot
 from simace.plotting.stats_report import truth_entry, truth_mean
 
 logger = logging.getLogger(__name__)
-
-
-def _component_expected_values(value: Any, generations: list[int]) -> np.ndarray | None:
-    """Return configured component values aligned to generation labels."""
-    if value is None:
-        return None
-    if isinstance(value, dict):
-        vals = []
-        for gen in generations:
-            raw = value.get(gen, value.get(str(gen), np.nan))
-            vals.append(float(raw) if raw is not None else np.nan)
-        arr = np.array(vals, dtype=float)
-        return arr if np.isfinite(arr).any() else None
-    return np.full(len(generations), float(value), dtype=float)
 
 
 def _generation_keys(per_gen_all: list[dict[str, Any]]) -> list[str]:
@@ -155,7 +143,7 @@ def plot_heritability_by_generation(
     generations = [int(k.split("_")[1]) for k in gen_keys]
     x = np.array(generations, dtype=float)
 
-    params = all_views[0].get("parameters", {})
+    sim = all_views[0].get("sim")
     component_specs = (
         ("A", "Additive genetic (A)", COLOR_OBSERVED, -0.06),
         ("C", "Common environment (C)", COLOR_EXPECTED, 0.06),
@@ -203,19 +191,17 @@ def plot_heritability_by_generation(
                 if finite_mean.any():
                     ax.plot(x[finite_mean], mean_values[finite_mean], color=color, linewidth=1.4, label=f"Mean {label}")
 
-            expected = _component_expected_values(params.get(f"{component}{trait_num}"), generations)
-            if expected is not None:
-                finite_expected = np.isfinite(expected)
-                if finite_expected.any():
-                    ax.plot(
-                        x[finite_expected],
-                        expected[finite_expected],
-                        color=color,
-                        linestyle="--",
-                        linewidth=1.0,
-                        alpha=0.7,
-                        label=f"Configured {component}{trait_num}",
-                    )
+            if sim is not None:
+                configured = sim.vc.A if component == "A" else sim.vc.C
+                ax.plot(
+                    x,
+                    np.full(len(generations), float(configured[trait_num - 1])),
+                    color=color,
+                    linestyle="--",
+                    linewidth=1.0,
+                    alpha=0.7,
+                    label=f"Configured {component}{trait_num}",
+                )
 
         ax.set_xlabel("Generation")
         ax.set_ylabel("Variance proportion / Var(L)")
@@ -334,7 +320,7 @@ def plot_heritability_by_sex_generation(
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
-    params: dict[str, Any] | None = None,
+    sim: SimulationParams | None = None,
 ) -> None:
     """Plot PO-regression heritability by offspring sex and generation.
 
@@ -393,10 +379,12 @@ def plot_heritability_by_sex_generation(
 
         # Expected slope: A / V_P without C transmission, else analytic where exact or
         # the rep-mean recorded-pedigree truth for each generation (ADR 0025).
-        if params is not None:
+        if sim is not None:
             expected = {
                 gen: reference_midparent_slope(
-                    params,
+                    sim.assortment,
+                    sim.c_transmission,
+                    sim.vc,
                     trait_num,
                     truth_mean(
                         [
@@ -461,7 +449,7 @@ def plot_observed_heritability(
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
-    params: dict[str, Any] | None = None,
+    sim: SimulationParams | None = None,
 ) -> None:
     """Observed-scale h² and its Dempster-Lerner liability-scale back-transform.
 
@@ -484,8 +472,8 @@ def plot_observed_heritability(
             ``observed_h2_estimators`` and ``prevalence``.
         output_path: image path to save.
         scenario: scenario label (for subtitle).
-        params: optional dict with ``A1``/``A2`` for the observed-scale LTM
-            reference line.
+        sim: the rep's parameters, for the observed-scale LTM reference
+            line; None draws none.
     """
     # Aggregate per-rep data.
     per_trait: dict[int, dict[str, list[float]]] = {
@@ -557,22 +545,20 @@ def plot_observed_heritability(
             )
 
         # Observed-column reference: A * mean dl_inv
-        if params is not None and K_vals:
-            A = params.get(f"A{trait_num}")
-            if A is not None:
-                K_bar = float(np.mean(K_vals))
-                dl_bar = dempster_lerner_factor(K_bar)
-                if np.isfinite(dl_bar):
-                    expected_obs = float(A) / dl_bar
-                    ax_obs.axhline(
-                        y=expected_obs,
-                        color=COLOR_UNAFFECTED,
-                        linestyle=":",
-                        linewidth=1.2,
-                        alpha=0.9,
-                        label=rf"LTM expected at $\bar{{K}}$={K_bar:.3f}: {expected_obs:.3f}",
-                    )
-                    ax_obs.legend(loc="best", fontsize=8, frameon=False)
+        if sim is not None and K_vals:
+            K_bar = float(np.mean(K_vals))
+            dl_bar = dempster_lerner_factor(K_bar)
+            if np.isfinite(dl_bar):
+                expected_obs = float(sim.vc.A[trait_num - 1]) / dl_bar
+                ax_obs.axhline(
+                    y=expected_obs,
+                    color=COLOR_UNAFFECTED,
+                    linestyle=":",
+                    linewidth=1.2,
+                    alpha=0.9,
+                    label=rf"LTM expected at $\bar{{K}}$={K_bar:.3f}: {expected_obs:.3f}",
+                )
+                ax_obs.legend(loc="best", fontsize=8, frameon=False)
 
         # Axis cosmetics.
         for ax, title, ylabel in (

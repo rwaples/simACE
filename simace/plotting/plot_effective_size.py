@@ -37,6 +37,7 @@ from simace.analysis.stats.effective_size import (
 from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_style import COLOR_EXPECTED, COLOR_OBSERVED
 from simace.plotting.plot_utils import savefig_dpi
+from simace.simulation.params import SimulationParams
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -596,28 +597,20 @@ def _save(fig, path: Path) -> None:
     plt.close(fig)
 
 
-def _build_subtitle(params: dict, scenario: str | None = None) -> str:
-    """Compose the Figure 1 subtitle from the rep params.yaml dict.
+def _build_subtitle(sim: SimulationParams, scenario: str | None = None) -> str:
+    """Compose the Figure 1 subtitle from the rep's parameters.
 
-    Branches on ``mating_model``: under WF, omits the ZTP λ term.  The
-    ``Ne≈`` term is the drift expectation from :func:`theoretical_expectations`,
-    omitted when it is ``None`` (e.g. under assortative mating).
+    Under WF, omits the ZTP λ term.  The ``Ne≈`` term is the drift
+    expectation from :func:`theoretical_expectations`, omitted when it is
+    ``None`` (e.g. under assortative mating).
     """
-    scenario = scenario or params.get("scenario") or params.get("scenario_name") or "scenario"
-    mating_model = params.get("mating_model", "standard")
-    n = params.get("N")
-    lam = params.get("mating_lambda")
-    g_ped = params.get("G_ped")
-    parts = [str(scenario)]
-    if n is not None:
-        parts.append(f"N={int(n):,}")
-    if mating_model == "wright_fisher":
+    parts = [scenario or "scenario", f"N={sim.N:,}"]
+    if sim.mating_model == "wright_fisher":
         parts.append("WF")
-    elif lam is not None:
-        parts.append(f"λ={float(lam):g}")
-    if g_ped is not None:
-        parts.append(f"G_ped={int(g_ped)}")
-    drift_ne = theoretical_expectations(params)["ne_long_term_contributions"]
+    else:
+        parts.append(f"λ={float(sim.mating_lambda):g}")
+    parts.append(f"G_ped={sim.span.G_ped}")
+    drift_ne = theoretical_expectations(sim)["ne_long_term_contributions"]
     if drift_ne is not None:
         parts.append(f"Ne≈{drift_ne:,.0f}")
     return "  ".join(parts)
@@ -698,13 +691,12 @@ def main(
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    params = load_yaml(params_path)
+    sim = SimulationParams.from_mapping(load_yaml(params_path))
     scalar_df, series_df = gather_effective_size([Path(p) for p in yaml_paths])
 
-    subtitle = _build_subtitle(params, scenario=_infer_scenario_from_path(params_path))
+    subtitle = _build_subtitle(sim, scenario=_infer_scenario_from_path(params_path))
 
-    mating_model = params.get("mating_model", "standard")
-    if mating_model == "wright_fisher":
+    if sim.mating_model == "wright_fisher":
         # Sex-structured WF: per-sex family-size is Poisson-like with mean 1
         # offspring per sex-slot, so the within-sex variance v → 1 and the
         # within-mating covariance cov → 0 (no per-pair fecundity).  Matches
@@ -712,13 +704,9 @@ def main(
         expected_v: float | None = 1.0
         expected_cov: float | None = 0.0
     else:
-        lam = params.get("mating_lambda")
-        if lam is None:
-            expected_v = expected_cov = None
-        else:
-            ztp = family_size_variance_expected_ztp(float(lam))
-            expected_v = ztp["v"]
-            expected_cov = ztp["cov"]
+        ztp = family_size_variance_expected_ztp(float(sim.mating_lambda))
+        expected_v = ztp["v"]
+        expected_cov = ztp["cov"]
 
     ctx = EffectiveSizeContext(
         scalar_df=scalar_df,

@@ -38,10 +38,10 @@ from pedigree_graph.effective_size import (
     estimate_effective_sizes,
 )
 
-from simace.analysis.quality.assortative_mating import assortment_schedule
 from simace.core.cli_base import add_logging_args, init_logging
 from simace.core.cohort import read_cohort, read_pedigree, selected_views
 from simace.core.yaml_io import dump_yaml, load_yaml
+from simace.simulation.params import SimulationParams
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -145,13 +145,13 @@ def regression_estimator_regime_ok(n: float, g_ped: int, ne: float) -> bool:
     return n * g_ped * g_ped >= _REGRESSION_REGIME_THRESHOLD * ne
 
 
-def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float | None]:
+def theoretical_expectations(sim: SimulationParams | None) -> dict[str, float | None]:
     """Closed-form Ne expectations under standard random-mating assumptions.
 
-    Returns a per-estimator dict.  Every entry is ``None`` when ``config``
-    is missing, ``N`` is unknown, or the configuration includes a
-    non-standard knob (currently: assortative mating in any generation,
-    through ``assort1``, ``assort2`` or ``assort_matrix``).
+    Returns a per-estimator dict.  Every entry is ``None`` when ``sim``
+    is missing or the configuration includes a non-standard knob
+    (currently: assortative mating in any generation, through ``assort1``,
+    ``assort2`` or ``assort_matrix``).
 
     The estimators that read the realized drift rate share one target,
     the drift ``Ne`` of :func:`ne_drift_expected_ztp`: Hill 1979 eq. 10,
@@ -188,17 +188,12 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
     pedigree is the selected sample plus its ancestors, so a small or
     selective sample shifts the realized values.
     """
-    if config is None:
+    if sim is None:
         return dict.fromkeys(ALL_EFFECTIVE_SIZE_ESTIMATORS)
 
-    N = config.get("N")
-    if N is None:
-        return dict.fromkeys(ALL_EFFECTIVE_SIZE_ESTIMATORS)
+    n = float(sim.N)
 
-    mating_model = config.get("mating_model", "standard")
-    n = float(N)
-
-    if mating_model == "wright_fisher":
+    if sim.mating_model == "wright_fisher":
         # Sex-structured idealized WF: per-individual offspring count has
         # mean 2 and variance ≈ 2 (Poisson(2)), so V(k) = 2 and every drift
         # form gives N.  assort1/assort2/mating_lambda are no-ops.  The
@@ -206,17 +201,13 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
         ne = n
     else:
         # Standard model: AM in any generation or through assort_matrix
-        # nullifies expectations; mating_lambda required.
-        assort1, assort2 = assortment_schedule(config)
-        if any(assort1) or any(assort2):
+        # nullifies expectations.
+        if sim.assortment.any_active:
             return dict.fromkeys(ALL_EFFECTIVE_SIZE_ESTIMATORS)
-        mating_lambda = config.get("mating_lambda")
-        if mating_lambda is None:
-            return dict.fromkeys(ALL_EFFECTIVE_SIZE_ESTIMATORS)
-        ne = ne_drift_expected_ztp(n, float(mating_lambda))
+        ne = ne_drift_expected_ztp(n, float(sim.mating_lambda))
 
-    g_ped = config.get("G_ped")
-    regression_ok = g_ped is not None and regression_estimator_regime_ok(n, int(g_ped), ne)
+    g_ped = sim.span.G_ped
+    regression_ok = regression_estimator_regime_ok(n, g_ped, ne)
     regression_expected = ne if regression_ok else None
 
     # Ne_iΔF reads the last recorded cohort, whose equivalent complete
@@ -228,10 +219,9 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
     # pedigrees at N=2000: +32.9% at t=4 against 33.3% predicted, +28.7% at
     # t=5 against 25.0%, +19.2% at t=7 against 16.7%.  Untested below t=3.
     delta_f_expected = None
-    if g_ped is not None:
-        t_ref = int(g_ped) - 1
-        if t_ref >= 3:
-            delta_f_expected = ne * t_ref / (t_ref - 1.0)
+    t_ref = g_ped - 1
+    if t_ref >= 3:
+        delta_f_expected = ne * t_ref / (t_ref - 1.0)
 
     return {
         "ne_inbreeding": regression_expected,
@@ -247,7 +237,7 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
 
 def compute_effective_size(
     pedigree: pd.DataFrame | pl.DataFrame | PedigreeGraph,
-    config: dict[str, Any] | None = None,
+    sim: SimulationParams | None = None,
     skip_ne_coancestry: bool = False,
 ) -> dict[str, dict[str, Any]]:
     """Run the Ne estimators on ``pedigree`` and serialize to dicts.
@@ -257,8 +247,8 @@ def compute_effective_size(
             already-built :class:`PedigreeGraph`.  Passing a graph avoids
             rebuilding it when the runner has already constructed one for
             relationship extraction.
-        config: Per-rep params (e.g. loaded from ``params.yaml``).
-            Used solely to derive theoretical expectations.
+        sim: The rep's parameters (parsed from ``params.yaml``), used
+            solely to derive theoretical expectations.
         skip_ne_coancestry: When True, ``ne_coancestry`` is dropped from the
             estimator selection and the full sparse kinship matrix is never
             built — required on very large pedigrees where K would OOM.  Its
@@ -276,7 +266,7 @@ def compute_effective_size(
     if skip_ne_coancestry:
         estimators = tuple(name for name in estimators if name != "ne_coancestry")
     raw = estimate_effective_sizes(pg, estimators)
-    expected = theoretical_expectations(config)
+    expected = theoretical_expectations(sim)
     # With pg.birth_year set, ne_hill_overlapping computes Hill 1979 eq. 10
     # with an estimated generation interval L, for which no closed-form
     # expectation is stated here.
@@ -308,10 +298,10 @@ def main(
     ``output_path``.
     """
     df_observed = selected_views(read_pedigree(pedigree_path), read_cohort(cohort_path)).pedigree
-    params = load_yaml(params_path)
+    sim = SimulationParams.from_mapping(load_yaml(params_path))
 
     pg = PedigreeGraph.from_frame(df_observed)
-    result = compute_effective_size(pg, config=params, skip_ne_coancestry=skip_ne_coancestry)
+    result = compute_effective_size(pg, sim=sim, skip_ne_coancestry=skip_ne_coancestry)
 
     dump_yaml(result, output_path)
 

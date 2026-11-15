@@ -13,9 +13,10 @@ if TYPE_CHECKING:
     import polars as pl
 
     from simace.core.pedigree_arrays import PedigreeArrays
+    from simace.simulation.params import SimulationParams
 
 
-def validate_twins(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any], ped: PedigreeArrays) -> dict[str, Any]:
+def validate_twins(df: pd.DataFrame | pl.DataFrame, sim: SimulationParams, ped: PedigreeArrays) -> dict[str, Any]:
     """Validate MZ twin properties for two-trait simulation.
 
     Checks bidirectional twin pointers, shared parents, identical A values
@@ -32,17 +33,15 @@ def validate_twins(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any], ped:
 
     Args:
         df: Pedigree DataFrame.
-        params: Scenario parameters; requires key ``p_mztwin`` (and optional
-            ``mating_model``, defaulted to ``"standard"``).
+        sim: The rep's parameters.
         ped: The same pedigree as id-addressable arrays.
 
     Returns:
         Dict of check-name to result dicts.
     """
     results = {}
-    mating_model = params.get("mating_model", "standard")
-    p_mztwin = params["p_mztwin"]
-    is_wf = mating_model == "wright_fisher"
+    p_mztwin = sim.p_mztwin
+    is_wf = sim.mating_model == "wright_fisher"
     pair_share = 0.0 if is_wf else float(p_mztwin) / (1 + float(p_mztwin))
     expected_rate = 2 * pair_share
 

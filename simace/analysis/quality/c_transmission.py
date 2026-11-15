@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from simace.core.numerics import ZERO_VAR_THRESHOLD
-from simace.core.relationships import transmission_coefficients
 
 from ._common import _info, _result, cluster_codes
 
@@ -23,6 +22,7 @@ if TYPE_CHECKING:
     import polars as pl
 
     from simace.core.pedigree_arrays import PedigreeArrays
+    from simace.simulation.params import CTransmission
 
 #: Fewer maternal households than this leaves the cluster-robust SE unreliable.
 MIN_HOUSEHOLDS = 50
@@ -53,9 +53,7 @@ def cluster_robust_ols(y: np.ndarray, X: np.ndarray, cluster: np.ndarray) -> tup
     return beta, np.sqrt(np.diag(cov))
 
 
-def validate_c_transmission(
-    df: pd.DataFrame | pl.DataFrame, params: dict[str, Any], ped: PedigreeArrays
-) -> dict[str, Any]:
+def validate_c_transmission(df: pd.DataFrame | pl.DataFrame, ctm: CTransmission, ped: PedigreeArrays) -> dict[str, Any]:
     """Check that offspring C regresses on parental C with the configured ``(b_m, b_f)``, per trait.
 
     Informational (not scored) when the trait has no C transmission, when a
@@ -71,7 +69,7 @@ def validate_c_transmission(
     results: dict[str, Any] = {}
     for t in (1, 2):
         name = f"c{t}_transmission"
-        b_m, b_f = transmission_coefficients(params, t)
+        b_m, b_f = ctm.coefficients(t)
         if b_m == b_f == 0.0:
             results[name] = _info(f"No C{t} transmission configured")
             continue

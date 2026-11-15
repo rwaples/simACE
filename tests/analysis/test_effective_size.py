@@ -22,6 +22,24 @@ from simace.analysis.stats.effective_size import (
 )
 from simace.core.cohort import COHORT_COLUMNS, build_cohort, write_cohort, write_pedigree
 from simace.core.pedigree_filter import filter_pedigree_to_observed
+from tests.conftest import sim_params
+
+#: The rest of a rep's parameters; each test's ``cfg`` overrides the keys it is about.
+_BASE = dict(
+    seed=1,
+    N=200,
+    G_ped=6,
+    mating_lambda=0.5,
+    p_mztwin=0.0,
+    A1=0.5,
+    C1=0.2,
+    E1=0.3,
+    A2=0.5,
+    C2=0.2,
+    E2=0.3,
+    rA=0.0,
+    rC=0.0,
+)
 
 EXPECTED_KEYS = set(ALL_EFFECTIVE_SIZE_ESTIMATORS)
 
@@ -69,14 +87,14 @@ class TestTheoreticalExpectations:
 
     def test_assortative_mating_disables_expectations(self):
         cfg = {"N": 200, "assort1": 0.3, "assort2": 0.0}
-        exp = theoretical_expectations(cfg)
+        exp = theoretical_expectations(sim_params(_BASE, **cfg))
         assert all(v is None for v in exp.values())
 
     def test_baseline100K_default_drops_regression_estimators(self):
         # baseline100K config: N=100K, G_ped=6 ⇒ N·G² = 3.6M < 120·Ne (~10.2M),
         # regression-based Ne_I/Ne_C/Ne_GC must report None.
         cfg = {"N": 100000, "assort1": 0.0, "assort2": 0.0, "mating_lambda": 0.5, "G_ped": 6}
-        exp = theoretical_expectations(cfg)
+        exp = theoretical_expectations(sim_params(_BASE, **cfg))
         ne = ne_drift_expected_ztp(100000.0, 0.5)
         assert exp["ne_inbreeding"] is None
         assert exp["ne_coancestry"] is None
@@ -91,7 +109,7 @@ class TestTheoreticalExpectations:
         # pedigree-graph 0.15 computes Ne_V from Hill 1979 eq. 9
         # (pedigree-graph#36); Ne_H passes it through without birth_year.
         cfg = {"N": 2000, "assort1": 0.0, "assort2": 0.0, "mating_lambda": 0.5, "G_ped": 12}
-        exp = theoretical_expectations(cfg)
+        exp = theoretical_expectations(sim_params(_BASE, **cfg))
         ne = ne_drift_expected_ztp(2000.0, 0.5)
         assert exp["ne_variance_family_size"] == pytest.approx(ne)
         assert exp["ne_hill_overlapping"] == pytest.approx(ne)
@@ -99,30 +117,18 @@ class TestTheoreticalExpectations:
     def test_drift_estimators_share_the_hill_expectation(self):
         # Issue #72: every drift-rate estimator targets 4N/(2+V(k)).
         cfg = {"N": 2000, "assort1": 0.0, "assort2": 0.0, "mating_lambda": 2.0, "G_ped": 12}
-        exp = theoretical_expectations(cfg)
+        exp = theoretical_expectations(sim_params(_BASE, **cfg))
         v_k = 2.0 + 4.0 * family_size_variance_expected_ztp(2.0)["cov"]
         hill = 4.0 * 2000 / (2.0 + v_k)
         for name in ("ne_inbreeding", "ne_coancestry", "ne_group_coancestry", "ne_long_term_contributions"):
             assert exp[name] == pytest.approx(hill), name
         assert exp["ne_individual_delta_f"] == pytest.approx(hill * 11.0 / 10.0)
 
-    def test_missing_g_ped_drops_regression_estimators(self):
-        cfg = {"N": 100000, "assort1": 0.0, "assort2": 0.0, "mating_lambda": 0.5}
-        exp = theoretical_expectations(cfg)
-        assert exp["ne_inbreeding"] is None
-        assert exp["ne_coancestry"] is None
-        assert exp["ne_group_coancestry"] is None
-        # Ne_iΔF needs G_ped too: without it the last cohort's pedigree depth,
-        # and so the size of its founder-boundary bias, is unknown.
-        assert exp["ne_individual_delta_f"] is None
-        # Other estimators still populated.
-        assert exp["ne_long_term_contributions"] is not None
-
     def test_per_generation_assortment_disables_expectations(self):
         # A per-generation dict used to crash float(); AM in any generation
         # nullifies the random-mating expectations.
         cfg = {"N": 2000, "G_ped": 12, "mating_lambda": 0.5, "assort1": {0: 0.0, 5: 0.3}, "assort2": 0.0}
-        assert all(v is None for v in theoretical_expectations(cfg).values())
+        assert all(v is None for v in theoretical_expectations(sim_params(_BASE, **cfg)).values())
 
     def test_assort_matrix_alone_disables_expectations(self):
         cfg = {
@@ -133,12 +139,7 @@ class TestTheoreticalExpectations:
             "assort2": 0.0,
             "assort_matrix": [[0.3, 0.1], [0.1, 0.3]],
         }
-        assert all(v is None for v in theoretical_expectations(cfg).values())
-
-    def test_missing_mating_lambda_disables_expectations(self):
-        cfg = {"N": 200, "assort1": 0.0, "assort2": 0.0}
-        exp = theoretical_expectations(cfg)
-        assert all(v is None for v in exp.values())
+        assert all(v is None for v in theoretical_expectations(sim_params(_BASE, **cfg)).values())
 
     # ── Wright-Fisher branch ─────────────────────────────────────────────
 
@@ -147,7 +148,7 @@ class TestTheoreticalExpectations:
         # the regression-based estimators must be None; variance-family ones
         # equal N exactly.  N is independent of the gate under WF.
         cfg = {"mating_model": "wright_fisher", "N": 2000, "G_ped": 4}
-        exp = theoretical_expectations(cfg)
+        exp = theoretical_expectations(sim_params(_BASE, **cfg))
         assert exp["ne_inbreeding"] is None
         assert exp["ne_coancestry"] is None
         assert exp["ne_group_coancestry"] is None
@@ -161,7 +162,7 @@ class TestTheoreticalExpectations:
     def test_wf_long_g_ped_populates_regression(self):
         # G_ped=12 ⇒ G_ped² = 144 ≥ 120 ⇒ regression-based estimators populated.
         cfg = {"mating_model": "wright_fisher", "N": 2000, "G_ped": 12}
-        exp = theoretical_expectations(cfg)
+        exp = theoretical_expectations(sim_params(_BASE, **cfg))
         assert exp["ne_inbreeding"] == pytest.approx(2000.0)
         assert exp["ne_coancestry"] == pytest.approx(2000.0)
         assert exp["ne_group_coancestry"] == pytest.approx(2000.0)
@@ -176,7 +177,7 @@ class TestTheoreticalExpectations:
             "assort2": 0.2,
             "mating_lambda": None,  # would None-out standard exps
         }
-        exp = theoretical_expectations(cfg)
+        exp = theoretical_expectations(sim_params(_BASE, **cfg))
         assert exp["ne_variance_family_size"] == pytest.approx(2000.0)
 
 
@@ -266,7 +267,7 @@ class TestComputeEffectiveSize:
         # G_ped=20 puts the regime check well into "ok" for N=200, so the
         # regression estimators receive the drift expectation too.
         cfg = {"N": 200, "assort1": 0.0, "assort2": 0.0, "mating_lambda": 0.5, "G_ped": 20}
-        result = compute_effective_size(tiny_pedigree, config=cfg)
+        result = compute_effective_size(tiny_pedigree, sim=sim_params(_BASE, **cfg))
         ne = ne_drift_expected_ztp(200, 0.5)
         for k in ("ne_inbreeding", "ne_coancestry", "ne_group_coancestry", "ne_long_term_contributions"):
             assert result[k]["expected"] == pytest.approx(ne), k
@@ -329,7 +330,7 @@ class TestComputeEffectiveSize:
         # closed-form expectation exists for Hill 1979 eq. (10).
         cfg = {"N": 200, "assort1": 0.0, "assort2": 0.0, "mating_lambda": 0.5, "G_ped": 20}
         df = tiny_pedigree.with_columns((pl.col("generation").cast(pl.Int64) * 5 + 2000).alias("birth_year"))
-        result = compute_effective_size(df, config=cfg)
+        result = compute_effective_size(df, sim=sim_params(_BASE, **cfg))
         assert result["ne_hill_overlapping"]["expected"] is None
         # Other estimators still receive their expected values.
         assert result["ne_inbreeding"]["expected"] is not None
@@ -472,7 +473,7 @@ def test_drift_expectation_matches_simulator_mc(mating_model: str, g_ped: int):
         "G_ped": g_ped,
         "mating_model": mating_model,
     }
-    exp = theoretical_expectations(cfg)
+    exp = theoretical_expectations(sim_params(_BASE, **cfg))
 
     ltc, coancestry = [], []
     for rep in range(n_reps):
@@ -571,7 +572,7 @@ def test_effective_size_main_writes_yaml(tmp_path, tiny_pedigree):
     write_cohort(build_cohort(analysis_pedigree, sample), cohort_path)
     assert len(analysis_pedigree) > len(sample_ids)
     with open(params_path, "w") as f:
-        yaml.safe_dump({"N": 200, "mating_lambda": 0.5}, f)
+        yaml.safe_dump({**_BASE, "N": 200, "G_sim": None, "rE": 0.0, "assort1": 0.0, "assort2": 0.0}, f)
 
     run_effective_size(
         pedigree_path=str(ped_path),

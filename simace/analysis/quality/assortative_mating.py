@@ -5,25 +5,24 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-import numpy as np
-
 from simace.core.numerics import finite_or_none
 from simace.simulation.assortment import parent_ce_gen
 from simace.simulation.mate_correlation import expected_mate_corr_matrix
-from simace.simulation.params import Assortment, Span, resolve_per_gen_param
 
 from ._common import _info
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Sequence
+
+    import numpy as np
+
+    from simace.simulation.params import Assortment, SimulationParams, Span, VarianceComponents
 
     from ._common import MateCorrelations
 
 __all__ = [
     "RecordedMating",
-    "assortment_schedule",
     "recorded_matings",
-    "schedule_span",
     "validate_assortative_mating",
 ]
 
@@ -53,73 +52,44 @@ class RecordedMating:
         return self.assort[0] != 0 and self.assort[1] != 0
 
 
-def schedule_span(params: Mapping[str, Any]) -> tuple[int, int]:
-    """``(G_sim, burnin)``: iteration ``i`` records generation ``i - burnin``, so recorded generation 0 is iteration ``burnin``'s offspring."""
-    G_sim = int(params.get("G_sim") or params.get("G_ped") or 1)
-    G_ped = int(params.get("G_ped") or G_sim)
-    return G_sim, G_sim - G_ped
-
-
-def _mated_matrix(params: Mapping[str, Any]) -> np.ndarray | None:
-    """The ``assort_matrix`` the simulator mates on: None under Wright-Fisher, which pairs at random."""
-    matrix = params.get("assort_matrix")
-    if matrix is None or params.get("mating_model", "standard") != "standard":
-        return None
-    return np.asarray(matrix, dtype=np.float64)
-
-
-def assortment_schedule(params: Mapping[str, Any]) -> tuple[list[float], list[float]]:
-    """The ``assort1`` and ``assort2`` the simulator mates on in each of the ``G_sim`` mating iterations of ``params``."""
-    G_sim, burnin = schedule_span(params)
-    schedule = Assortment.create(
-        Span(G_sim - burnin, G_sim),
-        params.get("assort1", 0.0),
-        params.get("assort2", 0.0),
-        params.get("assort_matrix"),
-        params.get("mating_model", "standard"),
-    ).schedule
-    return list(schedule[0]), list(schedule[1])
-
-
-def recorded_matings(params: dict[str, Any]) -> list[RecordedMating]:
+def recorded_matings(span: Span, vc: VarianceComponents, assortment: Assortment) -> list[RecordedMating]:
     """One :class:`RecordedMating` per mating iteration whose parents are both pedigree rows.
 
     Iteration ``i`` records generation ``i - burnin``, so its parents are
     recorded generation ``i - burnin - 1`` and carry the C/E of generation
-    ``parent_ce_gen(i)``. The targets follow :func:`assortment_schedule`;
-    a set ``assort_matrix`` is mated on only when both traits assort, and
-    under Wright-Fisher every target is zero.
+    ``parent_ce_gen(i)``. The targets follow the assortment schedule; a set
+    ``assort_matrix`` is mated on only when both traits assort, and under
+    Wright-Fisher every target is zero.
     """
-    G_sim, burnin = schedule_span(params)
-    assort1, assort2 = assortment_schedule(params)
-    matrix = _mated_matrix(params)
-    C1, C2 = float(params.get("C1", 0)), float(params.get("C2", 0))
-    E = {k: resolve_per_gen_param(params.get(k, 0), G_sim, name=k) for k in ("E1", "E2")}
+    assort1, assort2 = assortment.schedule
+    matrix = assortment.mated_matrix
+    C1, C2 = float(vc.C[0]), float(vc.C[1])
+    E = {t: vc.E_per_gen(t, span.G_sim) for t in (1, 2)}
 
     matings = []
-    for i in range(burnin + 1, G_sim):
+    for i in range(span.burnin + 1, span.G_sim):
         a1, a2 = assort1[i], assort2[i]
         g = parent_ce_gen(i)
         expected = expected_mate_corr_matrix(
             a1,
             a2,
-            rA=params.get("rA", 0),
-            rC=params.get("rC", 0),
-            A1=params.get("A1", 0),
+            rA=vc.rA,
+            rC=vc.rC,
+            A1=vc.A[0],
             C1=C1,
-            A2=params.get("A2", 0),
+            A2=vc.A[1],
             C2=C2,
             assort_matrix=matrix if a1 != 0 and a2 != 0 else None,
-            rE=params.get("rE", 0),
-            E1=E["E1"][g],
-            E2=E["E2"][g],
+            rE=vc.rE,
+            E1=E[1][g],
+            E2=E[2][g],
         )
-        ce = (C1, C2, E["E1"][g], E["E2"][g])
-        matings.append(RecordedMating(i - burnin - 1, (a1, a2), expected, ce))
+        ce = (C1, C2, E[1][g], E[2][g])
+        matings.append(RecordedMating(i - span.burnin - 1, (a1, a2), expected, ce))
     return matings
 
 
-def validate_assortative_mating(params: dict[str, Any], mates: MateCorrelations) -> dict[str, Any]:
+def validate_assortative_mating(sim: SimulationParams, mates: MateCorrelations) -> dict[str, Any]:
     """Report the pedigree's mate correlations, as information with no pass/fail.
 
     Each is the Pearson correlation of mother and father values over every
@@ -135,7 +105,7 @@ def validate_assortative_mating(params: dict[str, Any], mates: MateCorrelations)
     target (ADR 0031).
 
     Args:
-        params: Scenario parameters (``params.yaml``).
+        sim: The rep's parameters (``params.yaml``).
         mates: The pedigree's mate correlations
             (:func:`~simace.analysis.quality._common.mate_correlations`).
 
@@ -143,7 +113,7 @@ def validate_assortative_mating(params: dict[str, Any], mates: MateCorrelations)
         Dict of check-name to result dicts.
     """
     results: dict[str, Any] = {}
-    matings = recorded_matings(params)
+    matings = recorded_matings(sim.span, sim.vc, sim.assortment)
     n_pairs = mates.n_pairs
     if n_pairs == 0 or not matings:
         results["mate_corr_liability1"] = _info("No mating pairs with both parents present")

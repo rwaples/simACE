@@ -38,6 +38,7 @@ from simace.core.parquet import save_parquet
 from simace.core.relationships import DEFAULT_MAX_DEGREE
 from simace.core.trait_schema import hydrate_trait
 from simace.core.yaml_io import dump_yaml, load_yaml
+from simace.simulation.params import SimulationParams
 
 from .quality import build_quality_report
 from .report import assemble_report
@@ -106,15 +107,16 @@ def run_analysis(
     # Record the value this Analyze invocation used. Reports regenerated from
     # older params.yaml files then remain self-describing.
     params["max_degree"] = max_degree
+    sim = SimulationParams.from_mapping(params)
     scope_counts: dict[str, Any] = {}
 
     # --- Phase 1: Validate (recorded pedigree) ---
     logger.info("Analyze phase 1/3: quality checks and truth on %s", pedigree_path)
     df_full = read_pedigree(pedigree_path)
     graph = PedigreeGraph.from_frame(df_full)
-    quality_report = build_quality_report(df_full, params, graph)
+    quality_report = build_quality_report(df_full, sim, graph)
     recorded_truth = recorded_pedigree_truth(
-        df_full, params, max_degree, clips=read_c_transmission_clips(pedigree_path), graph=graph
+        df_full, sim, max_degree, clips=read_c_transmission_clips(pedigree_path), graph=graph
     )
     del graph
     scope_counts["recorded_pedigree"] = {

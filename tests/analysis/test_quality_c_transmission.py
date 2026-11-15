@@ -11,6 +11,7 @@ from simace.analysis.quality.am_equilibrium import validate_am_equilibrium
 from simace.analysis.quality.c_transmission import cluster_robust_ols, validate_c_transmission
 from simace.core.pedigree_arrays import PedigreeArrays
 from simace.simulation.simulate import run_simulation
+from tests.conftest import sim_params
 
 _SIM = dict(
     N=4000,
@@ -72,7 +73,7 @@ def test_cluster_codes_are_dense_and_match_unique():
 
 def test_transmission_check_passes_on_random_and_assortative_mating(rm_pedigree, am_pedigree):
     for ped, params in ((rm_pedigree, _params(**_CT)), (am_pedigree, _params(assort1=0.3, **_CT))):
-        result = validate_c_transmission(ped, params, PedigreeArrays.from_frame(ped))
+        result = validate_c_transmission(ped, sim_params(params).c_transmission, PedigreeArrays.from_frame(ped))
         for t in (1, 2):
             assert result[f"c{t}_transmission"]["passed"], result[f"c{t}_transmission"]["details"]
             assert result[f"c{t}_transmission"]["expected"] == [_CT[f"Ctm_maternal{t}"], _CT[f"Ctm_paternal{t}"]]
@@ -80,36 +81,44 @@ def test_transmission_check_passes_on_random_and_assortative_mating(rm_pedigree,
 
 def test_transmission_check_fails_on_the_wrong_coefficients(rm_pedigree):
     wrong = _params(**{**_CT, "Ctm_maternal1": 0.3})
-    result = validate_c_transmission(rm_pedigree, wrong, PedigreeArrays.from_frame(rm_pedigree))
+    result = validate_c_transmission(
+        rm_pedigree, sim_params(wrong).c_transmission, PedigreeArrays.from_frame(rm_pedigree)
+    )
     assert not result["c1_transmission"]["passed"]
 
 
 def test_transmission_check_is_informational_when_off_or_underpowered(rm_pedigree):
     ped = PedigreeArrays.from_frame(rm_pedigree)
-    off = validate_c_transmission(rm_pedigree, _params(), ped)
+    off = validate_c_transmission(rm_pedigree, sim_params(_params()).c_transmission, ped)
     assert all(r.get("informational") for r in off.values())
     no_c = run_simulation(seed=1, **{**_SIM, "N": 300, "C1": 0.0}, Ctm_maternal1=0.5).pedigree
-    small = validate_c_transmission(no_c, _params(C1=0.0, Ctm_maternal1=0.5), PedigreeArrays.from_frame(no_c))
+    small = validate_c_transmission(
+        no_c, sim_params(_params(C1=0.0, Ctm_maternal1=0.5)).c_transmission, PedigreeArrays.from_frame(no_c)
+    )
     assert "no variance" in small["c1_transmission"]["details"]
     tiny = run_simulation(seed=1, **{**_SIM, "N": 60}, Ctm_maternal1=0.5).pedigree
-    few = validate_c_transmission(tiny, _params(Ctm_maternal1=0.5), PedigreeArrays.from_frame(tiny))
+    few = validate_c_transmission(
+        tiny, sim_params(_params(Ctm_maternal1=0.5)).c_transmission, PedigreeArrays.from_frame(tiny)
+    )
     assert "households <" in few["c1_transmission"]["details"]
 
 
 def test_exact_copying_is_judged_on_the_numerical_floor():
     sim = {**_SIM, "N": 20_000, "rC": 0.0}  # b_m1 = 1 beside b_m2 = 0 is infeasible under rC != 0
     ped = run_simulation(seed=3, **sim, Ctm_maternal1=1.0).pedigree
-    result = validate_c_transmission(ped, _params(rC=0.0, Ctm_maternal1=1.0), PedigreeArrays.from_frame(ped))
+    result = validate_c_transmission(
+        ped, sim_params(_params(rC=0.0, Ctm_maternal1=1.0)).c_transmission, PedigreeArrays.from_frame(ped)
+    )
     assert result["c1_transmission"]["passed"], result["c1_transmission"]["details"]
 
 
 def test_c_sharing_groups_by_mating_pair_under_paternal_transmission(rm_pedigree):
-    result = validate_statistical(rm_pedigree, _params(**_CT))
+    result = validate_statistical(rm_pedigree, sim_params(_params(**_CT)))
     assert result["c1_inheritance"]["passed"]
     assert "mating pairs" in result["c1_inheritance"]["details"]
     assert result["c2_inheritance"]["passed"]  # b_f2 = 0: householdmates still share C2
     assert "households" in result["c2_inheritance"]["details"]
-    by_mother = validate_statistical(rm_pedigree, _params(**{**_CT, "Ctm_paternal1": 0.0}))
+    by_mother = validate_statistical(rm_pedigree, sim_params(_params(**{**_CT, "Ctm_paternal1": 0.0})))
     assert not by_mother["c1_inheritance"]["passed"]
 
 
@@ -123,20 +132,20 @@ def _break_generation0_households(pedigree: pl.DataFrame, column: str) -> pl.Dat
 
 def test_c_sharing_covers_generation0_households_without_paternal_transmission(rm_pedigree):
     """b_f2 = 0: generation 0's householdmates share a mother, so a broken share there fails (ADR 0030 §5)."""
-    assert validate_statistical(rm_pedigree, _params(**_CT))["c2_inheritance"]["passed"]
-    broken = validate_statistical(_break_generation0_households(rm_pedigree, "C2"), _params(**_CT))
+    assert validate_statistical(rm_pedigree, sim_params(_params(**_CT)))["c2_inheritance"]["passed"]
+    broken = validate_statistical(_break_generation0_households(rm_pedigree, "C2"), sim_params(_params(**_CT)))
     assert not broken["c2_inheritance"]["passed"]
 
 
 def test_c_sharing_leaves_out_generation0_under_paternal_transmission(rm_pedigree):
     """b_f1 != 0: generation 0's fathers are unrecorded, so it has no mating pairs to group."""
-    broken = validate_statistical(_break_generation0_households(rm_pedigree, "C1"), _params(**_CT))
+    broken = validate_statistical(_break_generation0_households(rm_pedigree, "C1"), sim_params(_params(**_CT)))
     assert broken["c1_inheritance"]["passed"]
     assert "mating pairs" in broken["c1_inheritance"]["details"]
 
 
 def test_total_variance_is_the_variance_of_the_sum(am_pedigree):
-    result = validate_statistical(am_pedigree, _params(assort1=0.3, **_CT))
+    result = validate_statistical(am_pedigree, sim_params(_params(assort1=0.3, **_CT)))
     founders = am_pedigree.filter(am_pedigree["mother"] == -1)
     direct = np.var((founders["A1"] + founders["C1"] + founders["E1"]).to_numpy(), ddof=1)
     assert result["total_variance_trait1"]["observed"] == pytest.approx(direct)
@@ -146,7 +155,7 @@ def test_phs_shared_c_reports_bf_squared_under_the_gate(rm_pedigree, am_pedigree
     params = _params(**_CT)
     result = validate_half_sibs(
         rm_pedigree,
-        params,
+        sim_params(params),
         sibling_moments(rm_pedigree, PedigreeArrays.from_frame(rm_pedigree)),
         mate_correlations(rm_pedigree, mate_pedigree(rm_pedigree)),
     )
@@ -155,7 +164,7 @@ def test_phs_shared_c_reports_bf_squared_under_the_gate(rm_pedigree, am_pedigree
     assert result["half_sib_shared_C1"]["observed"] == pytest.approx(0.09, abs=0.05)
     am = validate_half_sibs(
         am_pedigree,
-        _params(assort1=0.3, **_CT),
+        sim_params(_params(assort1=0.3, **_CT)),
         sibling_moments(am_pedigree, PedigreeArrays.from_frame(am_pedigree)),
         mate_correlations(am_pedigree, mate_pedigree(am_pedigree)),
     )
@@ -163,7 +172,7 @@ def test_phs_shared_c_reports_bf_squared_under_the_gate(rm_pedigree, am_pedigree
 
 
 def test_am_equilibrium_is_informational_under_transmission(am_pedigree):
-    result = validate_am_equilibrium(am_pedigree, _params(assort1=0.3, **_CT))
+    result = validate_am_equilibrium(am_pedigree, sim_params(_params(assort1=0.3, **_CT)))
     assert result["am_equilibrium_A1"].get("informational")
     assert "observed" in result["am_equilibrium_A1"]
 
@@ -183,15 +192,15 @@ def test_sibling_e_independence_uses_an_se_based_tolerance():
         }
     )
     independent = frame.with_columns(E1=rng.normal(size=3 * n))
-    result = validate_statistical(independent, _params())["e1_independence"]
+    result = validate_statistical(independent, sim_params(_params()))["e1_independence"]
     assert result["passed"], result["details"]
     assert result["tolerance"] == pytest.approx(4 / np.sqrt(n - 1))
     correlated = frame.with_columns(E1=np.r_[rng.normal(size=n), np.repeat(shared, 2) + 0.5 * rng.normal(size=2 * n)])
-    assert not validate_statistical(correlated, _params())["e1_independence"]["passed"]
+    assert not validate_statistical(correlated, sim_params(_params()))["e1_independence"]["passed"]
 
 
 def test_full_report_passes_on_a_random_mating_transmission_pedigree(rm_pedigree):
-    report = build_quality_report(rm_pedigree, _params(**_CT))
+    report = build_quality_report(rm_pedigree, sim_params(_params(**_CT)))
     failed = [
         f"{cat}.{name}: {r.get('details')}"
         for cat, checks in report.items()

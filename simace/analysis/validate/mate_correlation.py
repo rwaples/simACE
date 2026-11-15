@@ -59,6 +59,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from simace.analysis.quality.assortative_mating import RecordedMating
+    from simace.simulation.params import VarianceComponents
 
     from .calibrated import RepInputs
 
@@ -123,10 +124,10 @@ def _mating_pairs(
     return keys // n_rows, keys % n_rows, int(children.sum())
 
 
-def _configured_zero(params: Mapping[str, Any], mating: RecordedMating, t: int) -> bool:
+def _configured_zero(vc: VarianceComponents, mating: RecordedMating, t: int) -> bool:
     """Whether trait ``t``'s A, C and E are all configured 0 for the parents of ``mating``."""
     c, e = mating.ce[t - 1], mating.ce[t + 1]
-    return float(params.get(f"A{t}", 0)) == 0 and c == 0 and e == 0
+    return float(vc.A[t - 1]) == 0 and c == 0 and e == 0
 
 
 def _checked_record(records: Mapping[int, dict[str, Any]], mating: RecordedMating) -> dict[str, Any]:
@@ -224,8 +225,8 @@ def run_mate_correlation(inputs: RepInputs) -> dict[str, Any]:
         ``{"scope", "cells", "summary"}`` with cells ``g{g}_{liability1,
         liability2, cross_12, cross_21}``, or no cells and ``not_applicable``.
     """
-    params = inputs.params
-    matings = recorded_matings(dict(params))
+    sim = inputs.sim
+    matings = recorded_matings(sim.span, sim.vc, sim.assortment)
     if not any(m.assort != (0, 0) for m in matings):
         return section(SCOPE, {}, "no assortative mating in a recorded mating iteration")
     pedigree = inputs.pedigree
@@ -256,7 +257,7 @@ def run_mate_correlation(inputs: RepInputs) -> dict[str, Any]:
                     expected=expected,
                     n_pairs=len(x),
                 )
-            elif _configured_zero(params, m, i + 1) or _configured_zero(params, m, j + 1):
+            elif _configured_zero(sim.vc, m, i + 1) or _configured_zero(sim.vc, m, j + 1):
                 cells[name] = not_applicable_cell("A, C and E configured 0", n_pairs=len(x))
             else:
                 missed = record["errors"] if record["mode"] in _PINNED and not record["converged"] else None

@@ -16,6 +16,7 @@ from simace.plotting.plot_effective_size import (
     plot_estimators_overview,
     plot_ne_by_generation,
 )
+from tests.conftest import SIM_DEFAULTS, sim_params
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -130,7 +131,7 @@ def two_rep_yamls(tmp_path: Path) -> list[Path]:
 @pytest.fixture
 def params_path(tmp_path: Path) -> Path:
     p = tmp_path / "params.yaml"
-    _write_yaml(p, {"scenario": "test_scenario", "N": 10000, "mating_lambda": 0.5, "G_ped": 6})
+    _write_yaml(p, {**SIM_DEFAULTS, "N": 10000, "mating_lambda": 0.5, "G_ped": 6})
     return p
 
 
@@ -364,7 +365,7 @@ class TestBuildSubtitleWF:
             "G_ped": 6,
             "mating_lambda": 0.5,  # inherited default — must be ignored
         }
-        subtitle = _build_subtitle(params, scenario="wf_smoke")
+        subtitle = _build_subtitle(sim_params(params), scenario="wf_smoke")
         assert "λ=" not in subtitle
         assert "WF" in subtitle
         assert "Ne≈2,000" in subtitle
@@ -377,11 +378,11 @@ class TestBuildSubtitleWF:
             "G_ped": 6,
             "mating_lambda": 0.5,
         }
-        subtitle = _build_subtitle(params, scenario="std_smoke")
+        subtitle = _build_subtitle(sim_params(params), scenario="std_smoke")
         assert "λ=0.5" in subtitle
         # Standard ZTP(0.5) gives drift Ne = 4N/(2+V(k)) ≈ 0.8472·N ≈ 1694, not N.
         assert "Ne≈1,694" in subtitle
 
     def test_assortative_mating_omits_ne(self):
         params = {"mating_model": "standard", "N": 2000, "G_ped": 6, "mating_lambda": 0.5, "assort1": 0.3}
-        assert "Ne≈" not in _build_subtitle(params, scenario="am")
+        assert "Ne≈" not in _build_subtitle(sim_params(params), scenario="am")

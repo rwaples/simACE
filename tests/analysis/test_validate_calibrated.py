@@ -18,19 +18,25 @@ from simace.analysis.validate.calibrated import (
     summarize,
 )
 from simace.analysis.validate.verdict import ZCalibration
+from simace.simulation.params import SimulationParams
 
 
 def test_params_come_from_the_reports_inputs(tmp_path) -> None:
+    params = {
+        "seed": 1, "N": 100, "G_ped": 2, "G_sim": None, "mating_lambda": 0.5, "p_mztwin": 0.0,
+        "A1": 0.5, "C1": 0.2, "E1": 0.3, "A2": 0.4, "C2": 0.2, "E2": 0.4,
+        "rA": 0.0, "rC": 0.0, "rE": 0.0, "assort1": 0.0, "assort2": 0.0,
+    }  # fmt: skip
     report = tmp_path / "report.yaml"
-    report.write_text(yaml.safe_dump({"inputs": {"parameters": {"A1": 0.5, "C1": 0.2}}}))
+    report.write_text(yaml.safe_dump({"inputs": {"parameters": params}}))
     inputs = RepInputs(tmp_path / "pedigree.parquet", report, seed=1, phenotype={})
-    assert inputs.params == {"A1": 0.5, "C1": 0.2}
+    assert inputs.sim == SimulationParams.from_mapping(params)
 
 
 def test_params_without_a_report_name_the_flag(tmp_path) -> None:
     inputs = RepInputs(tmp_path / "pedigree.parquet", None, seed=1, phenotype={})
     with pytest.raises(ValueError, match="--report"):
-        _ = inputs.params
+        _ = inputs.sim
 
 
 def test_summary_bounds_only_the_scored_cells() -> None:

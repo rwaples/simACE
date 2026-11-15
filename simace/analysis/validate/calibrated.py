@@ -38,6 +38,8 @@ if TYPE_CHECKING:
     import numpy as np
     import polars as pl
 
+    from simace.simulation.params import SimulationParams
+
     from .verdict import ZCalibration
 
 #: Share of correct reps whose largest |z| exceeds the per-rep bound of :func:`summarize`.
@@ -49,7 +51,7 @@ class RepInputs:
     """What a calibrated test may read of one rep; each file is read only when a test asks for it."""
 
     pedigree_path: Path
-    #: The rep's ``report.yaml``; None when no requested check reads :attr:`params`.
+    #: The rep's ``report.yaml``; None when no requested check reads :attr:`sim`.
     report_path: Path | None
     seed: int
     #: ``run_phenotype``'s keyword arguments other than ``seed``.
@@ -65,13 +67,14 @@ class RepInputs:
         return read_pedigree(self.pedigree_path)
 
     @cached_property
-    def params(self) -> Mapping[str, Any]:
-        """The scenario parameters the rep was built with (``report.yaml``'s ``inputs.parameters``)."""
+    def sim(self) -> SimulationParams:
+        """The parameters the rep was built with, parsed from ``report.yaml``'s ``inputs.parameters``."""
         from simace.core.yaml_io import load_yaml
+        from simace.simulation.params import SimulationParams
 
         if self.report_path is None:
             raise ValueError("this check reads the scenario parameters: pass the rep's report.yaml (--report)")
-        return load_yaml(self.report_path)["inputs"]["parameters"]
+        return SimulationParams.from_mapping(load_yaml(self.report_path)["inputs"]["parameters"])
 
     @cached_property
     def mating_log(self) -> list[dict[str, Any]]:

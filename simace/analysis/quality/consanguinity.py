@@ -15,9 +15,7 @@ if TYPE_CHECKING:
     from simace.core.pedigree_arrays import PedigreeArrays
 
 
-def validate_consanguineous_matings(
-    df: pd.DataFrame | pl.DataFrame, params: dict[str, Any], ped: PedigreeArrays
-) -> dict[str, Any]:
+def validate_consanguineous_matings(df: pd.DataFrame | pl.DataFrame, ped: PedigreeArrays) -> dict[str, Any]:
     """Detect consanguineous matings and reconcile grandparent-link discrepancy.
 
     When ``pair_partners()`` randomly pairs individuals, half-siblings (or
@@ -33,7 +31,6 @@ def validate_consanguineous_matings(
 
     Args:
         df: Pedigree DataFrame with columns id, mother, father.
-        params: Scenario parameters (accepted for API consistency).
         ped: The same pedigree as id-addressable arrays.
 
     Returns:

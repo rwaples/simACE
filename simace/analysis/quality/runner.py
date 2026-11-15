@@ -13,6 +13,8 @@ if TYPE_CHECKING:
     import polars as pl
     from pedigree_graph import PedigreeGraph
 
+    from simace.simulation.params import SimulationParams
+
 from ._common import mate_correlations, sibling_moments
 from .am_equilibrium import validate_am_equilibrium
 from .assortative_mating import validate_assortative_mating
@@ -33,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 def build_quality_report(
-    df: pd.DataFrame | pl.DataFrame, params: dict[str, Any], graph: PedigreeGraph | None = None
+    df: pd.DataFrame | pl.DataFrame, sim: SimulationParams, graph: PedigreeGraph | None = None
 ) -> dict[str, Any]:
     """Run every quality-check family on an in-memory pedigree and return results.
 
@@ -43,7 +45,7 @@ def build_quality_report(
 
     Args:
         df: Pedigree DataFrame (full, pre-ascertainment).
-        params: Scenario parameters.
+        sim: The rep's parameters.
         graph: ``df``'s pedigree graph, when the caller already built one;
             built here otherwise.
 
@@ -52,8 +54,7 @@ def build_quality_report(
         ``"twins"``, ``"half_sibs"``, ``"statistical"``, ``"c_transmission"``,
         ``"heritability"``, ``"population"``, ``"assortative_mating"``,
         ``"am_equilibrium"``, ``"consanguineous_matings"``), plus
-        ``"per_generation"``, ``"summary"``, ``"family_size_distribution"``
-        and ``"parameters"``. ``"summary"`` holds ``passed`` (bool),
+        ``"per_generation"``, ``"summary"`` and ``"family_size_distribution"``. ``"summary"`` holds ``passed`` (bool),
         ``checks_passed``, ``checks_failed`` and ``checks_total`` over every
         family.
     """
@@ -63,17 +64,17 @@ def build_quality_report(
     mates = mate_correlations(df, pedigree)
 
     results = {
-        "structural": validate_structural(df, params, ped),
-        "twins": validate_twins(df, params, ped),
-        "half_sibs": validate_half_sibs(df, params, siblings, mates),
-        "statistical": validate_statistical(df, params),
-        "c_transmission": validate_c_transmission(df, params, ped),
-        "heritability": validate_heritability(df, params, ped, pedigree, siblings, mates),
-        "population": validate_population(df, params),
-        "per_generation": compute_per_generation_stats(df, params),
-        "assortative_mating": validate_assortative_mating(params, mates),
-        "am_equilibrium": validate_am_equilibrium(df, params),
-        "consanguineous_matings": validate_consanguineous_matings(df, params, ped),
+        "structural": validate_structural(df, sim, ped),
+        "twins": validate_twins(df, sim, ped),
+        "half_sibs": validate_half_sibs(df, sim, siblings, mates),
+        "statistical": validate_statistical(df, sim),
+        "c_transmission": validate_c_transmission(df, sim.c_transmission, ped),
+        "heritability": validate_heritability(df, sim, ped, pedigree, siblings, mates),
+        "population": validate_population(df, sim),
+        "per_generation": compute_per_generation_stats(df, sim),
+        "assortative_mating": validate_assortative_mating(sim, mates),
+        "am_equilibrium": validate_am_equilibrium(df, sim),
+        "consanguineous_matings": validate_consanguineous_matings(df, ped),
     }
 
     checks_passed = 0
@@ -102,8 +103,7 @@ def build_quality_report(
         "checks_total": checks_passed + checks_failed,
     }
 
-    results["family_size_distribution"] = compute_family_size_distribution(df, params)
-    results["parameters"] = params
+    results["family_size_distribution"] = compute_family_size_distribution(df)
 
     logger.info(
         "Quality checks complete: %d/%d passed",

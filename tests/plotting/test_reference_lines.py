@@ -9,8 +9,17 @@ from simace.analysis.gather import main as gather
 from simace.core.relationships import reference_corr, reference_midparent_slope
 from simace.plotting.plot_correlations import _parametric_per_relationship_type
 from simace.plotting.plot_validation import _reference_corr, _reference_slope
+from tests.conftest import reference_records, sim_params
 
 _PARAMS = {
+    "seed": 1,
+    "N": 1000,
+    "G_ped": 3,
+    "mating_lambda": 0.5,
+    "p_mztwin": 0.0,
+    "rA": 0.0,
+    "rC": 0.0,
+    "rE": 0.0,
     "A1": 0.4,
     "C1": 0.3,
     "E1": 0.3,
@@ -50,14 +59,23 @@ def _gathered(tmp_path, params):
 
 
 def test_matrix_only_assortment_keeps_the_recorded_reference_through_gather(tmp_path):
-    """assort_matrix with zero assort1/assort2 is assortative mating: the gathered row must not read as random."""
-    params = {**_PARAMS, "assort_matrix": [[0.0, 0.2], [0.2, 0.0]]}
+    """assort_matrix with zero assort1/assort2 mates on its diagonal: the gathered row must not read as random."""
+    params = {**_PARAMS, "assort_matrix": [[0.2, 0.05], [0.05, 0.1]]}
     df, report = _gathered(tmp_path, params)
     truth = report["truth"]["recorded_pedigree"]["traits"]["trait1"]
-    before = reference_corr("PHS", params, 1, truth["relationships"])
+    before = reference_corr("PHS", *reference_records(params), 1, truth["relationships"])
     assert before == _TRUTH_R
     assert _reference_corr("PHS", 1)(df) == pytest.approx(before)
     assert _reference_slope(1)(df) == pytest.approx(_TRUTH_SLOPE)
+
+
+def test_a_zero_diagonal_matrix_is_random_mating_through_gather(tmp_path):
+    """The simulator pairs at random when the diagonal is zero, so the analytic line holds (#86)."""
+    params = {**_PARAMS, "assort_matrix": [[0.0, 0.2], [0.2, 0.0]]}
+    df, _ = _gathered(tmp_path, params)
+    analytic = (0.25 * 0.4 + 0.09 * 0.3) / 1.0
+    assert reference_corr("PHS", *reference_records(params), 1) == pytest.approx(analytic)
+    assert _reference_corr("PHS", 1)(df) == pytest.approx(analytic)
 
 
 def test_random_mating_still_draws_the_analytic_reference_after_gather(tmp_path):
@@ -86,14 +104,14 @@ def test_scalar_cells_in_a_text_column_parse_as_numbers(tmp_path):
     df = pl.read_csv(tsv, separator="\t", null_values=["NA", ""], infer_schema_length=None).to_pandas()
     assert pd.api.types.is_string_dtype(df["E1"])
     scalar = df[df["scenario"] == "scalar"]
-    assert _reference_corr("FS", 1)(scalar) == pytest.approx(reference_corr("FS", _PARAMS, 1))
-    assert _reference_slope(1)(scalar) == pytest.approx(reference_midparent_slope(_PARAMS, 1))
+    assert _reference_corr("FS", 1)(scalar) == pytest.approx(reference_corr("FS", *reference_records(_PARAMS), 1))
+    assert _reference_slope(1)(scalar) == pytest.approx(reference_midparent_slope(*reference_records(_PARAMS), 1))
 
 
 def test_all_zero_per_generation_assortment_is_random_mating_after_gather(tmp_path):
     params = {**_PARAMS, "assort1": {0: 0.0, 4: 0.0}}
     df, _ = _gathered(tmp_path, params)
-    assert _reference_corr("PHS", 1)(df) == pytest.approx(reference_corr("PHS", params, 1))
+    assert _reference_corr("PHS", 1)(df) == pytest.approx(reference_corr("PHS", *reference_records(params), 1))
     assert _reference_corr("PHS", 1)(df) != pytest.approx(_TRUTH_R)
 
 
@@ -105,7 +123,9 @@ def test_missing_components_draw_no_line():
 
 def test_zero_variance_trait_has_no_reference_line():
     params = {**_PARAMS, "A1": 0.0, "C1": 0.0, "E1": 0.0}
-    assert reference_corr("FS", params, 1) is None
-    assert reference_midparent_slope(params, 1) is None
-    assert reference_midparent_slope({**params, "Ctm_maternal1": 0.0, "Ctm_paternal1": 0.0}, 1) is None
-    assert _parametric_per_relationship_type(params, 1, ["MZ", "FS", "MO"]) == {}
+    assert reference_corr("FS", *reference_records(params), 1) is None
+    assert reference_midparent_slope(*reference_records(params), 1) is None
+    assert (
+        reference_midparent_slope(*reference_records({**params, "Ctm_maternal1": 0.0, "Ctm_paternal1": 0.0}), 1) is None
+    )
+    assert _parametric_per_relationship_type(sim_params(params), 1, ["MZ", "FS", "MO"]) == {}

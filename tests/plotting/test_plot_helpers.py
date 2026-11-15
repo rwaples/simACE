@@ -15,6 +15,7 @@ import polars as pl
 import pytest
 
 from simace.plotting.plot_utils import finalize_plot, save_placeholder_plot, sort_generation_keys
+from tests.conftest import sim_params
 
 # ---------------------------------------------------------------------------
 # sort_generation_keys
@@ -258,8 +259,8 @@ class TestPlaceholderPaths:
         from simace.plotting.plot_correlations import plot_parent_offspring_liability
 
         out = tmp_path / "po_params.png"
-        params = {"A1": 0.5, "C1": 0.3, "A2": 0.4, "C2": 0.2}
-        plot_parent_offspring_liability(sample_df, [{}], out, scenario="test", params=params)
+        sim = sim_params(A1=0.5, C1=0.3, A2=0.4, C2=0.2)
+        plot_parent_offspring_liability(sample_df, [{}], out, scenario="test", sim=sim)
         assert out.exists()
 
     def test_cumulative_by_sex_no_data(self, tmp_path):

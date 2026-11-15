@@ -39,6 +39,9 @@ BASE = dict(
     E2=0.4,
     rA=0.3,
     rC=0.0,
+    rE=0.0,
+    assort1=0.0,
+    assort2=0.0,
 )
 #: Copula on trait 1 in parents' generations 0–1, Metropolis on both in 2–4 (``inh_am_mixed``).
 MIXED = {**BASE, "assort1": 0.3, "assort2": {0: 0.0, 5: 0.3}}

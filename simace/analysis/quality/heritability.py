@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from pg_phenotype import Pedigree
 
     from simace.core.pedigree_arrays import PedigreeArrays
+    from simace.simulation.params import Assortment, SimulationParams
 
     from ._common import MateCorrelations
 
@@ -112,7 +113,7 @@ def _validate_mz_correlations(
 
 def _validate_dz_correlations(
     mates: MateCorrelations,
-    params: dict[str, Any],
+    assortment: Assortment,
     sibling_moments: RelationshipMoments,
     results: dict[str, Any],
 ) -> tuple[dict[int, float | None], int]:
@@ -136,7 +137,7 @@ def _validate_dz_correlations(
             # Full-sib (DZ) A correlation: 2*kinship under random mating,
             # AM-inflated to (1+mu_A)/2 under single-trait assortment.
             expected_dz, skip, info = resolve_expected_a_corr(
-                mates, params, t, "FS", 2.0 * RELATIONSHIPS["FS"].nominal_kinship
+                mates, assortment, t, "FS", 2.0 * RELATIONSHIPS["FS"].nominal_kinship
             )
             if expected_dz is None:
                 # Reported, not asserted: no single-trait formula under {skip}.
@@ -175,7 +176,7 @@ def _validate_dz_correlations(
 
 def _falconer_expected(
     mates: MateCorrelations,
-    params: dict[str, Any],
+    assortment: Assortment,
     comp_vals: dict[str, np.ndarray],
     A_params: dict[int, float],
     t: int,
@@ -189,7 +190,7 @@ def _falconer_expected(
     the inflated liability variance) — a known AM bias the check now asserts the
     simulator reproduces. Both-trait AM skips (cross-trait bias not modelled).
     """
-    mode = am_relatedness_mode(params, t)
+    mode = am_relatedness_mode(assortment, t)
     if mode == "none":
         return A_params[t], None, f"expected ~{A_params[t]}", {}
     if mode == "bivariate":
@@ -206,7 +207,7 @@ def _falconer_expected(
 
 def _validate_falconer(
     mates: MateCorrelations,
-    params: dict[str, Any],
+    assortment: Assortment,
     comp_vals: dict[str, np.ndarray],
     A_params: dict[int, float],
     mz_pheno_corr: dict[int, float | None],
@@ -226,7 +227,7 @@ def _validate_falconer(
             continue
 
         falconer = 2 * (mz_c - dz_c)
-        expected, skip, label, info = _falconer_expected(mates, params, comp_vals, A_params, t)
+        expected, skip, label, info = _falconer_expected(mates, assortment, comp_vals, A_params, t)
         if expected is None:
             # Reported, not asserted: cross-trait Falconer bias not modelled.
             results[f"falconer_estimate_trait{t}"] = _info(
@@ -262,7 +263,7 @@ def _validate_parent_offspring(
 
 def validate_heritability(
     df: pd.DataFrame | pl.DataFrame,
-    params: dict[str, Any],
+    sim: SimulationParams,
     ped: PedigreeArrays,
     pedigree: Pedigree,
     sibling_moments: RelationshipMoments,
@@ -277,7 +278,7 @@ def validate_heritability(
 
     Args:
         df: Pedigree DataFrame.
-        params: Scenario parameters; requires keys ``A1``, ``A2``.
+        sim: The rep's parameters.
         ped: The same pedigree as id-addressable arrays.
         pedigree: :func:`~simace.analysis.mate_correlation.mate_pedigree` of
             ``df``, for the midparent-offspring regressions.
@@ -292,7 +293,7 @@ def validate_heritability(
         Falconer estimates, and parent-offspring regression slopes.
     """
     results: dict[str, Any] = {}
-    A_params = {1: params["A1"], 2: params["A2"]}
+    A_params = {1: sim.vc.A[0], 2: sim.vc.A[1]}
     comp_vals = _extract_comp_vals(ped)
 
     mz_pheno_corr, n_mz_pairs = _validate_mz_correlations(
@@ -304,13 +305,13 @@ def validate_heritability(
     )
     dz_pheno_corr, n_dz_pairs = _validate_dz_correlations(
         mates,
-        params,
+        sim.assortment,
         sibling_moments,
         results,
     )
     _validate_falconer(
         mates,
-        params,
+        sim.assortment,
         comp_vals,
         A_params,
         mz_pheno_corr,

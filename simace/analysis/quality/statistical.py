@@ -13,18 +13,17 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from simace.core.numerics import safe_corrcoef
-from simace.core.relationships import transmission_coefficients
-from simace.simulation.params import resolve_per_gen_param
 
 from ._common import _corr_tolerance, _info, _result, sorted_runs
 from .am_relatedness import am_relatedness_mode
-from .assortative_mating import schedule_span
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
     import pandas as pd
     import polars as pl
+
+    from simace.simulation.params import SimulationParams
 
 
 def _check_variance(founders: Mapping[str, np.ndarray], col: str, expected: float, tol: float = 0.1) -> dict[str, Any]:
@@ -41,7 +40,7 @@ def _check_variance(founders: Mapping[str, np.ndarray], col: str, expected: floa
     )
 
 
-def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
+def validate_statistical(df: pd.DataFrame | pl.DataFrame, sim: SimulationParams) -> dict[str, Any]:
     """Validate statistical properties of variance components for two traits.
 
     Checks founder variances for A, C, E against configured values,
@@ -55,30 +54,27 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]
     Args:
         df: Pedigree DataFrame with variance-component columns A1, C1, E1,
             A2, C2, E2.
-        params: Scenario parameters; requires keys ``A1``, ``C1``, ``E1``,
-            ``A2``, ``C2``, ``E2``, ``rA``, ``rC``.
+        sim: The rep's parameters.
 
     Returns:
         Dict of check-name to result dicts.
     """
     results = {}
 
-    rA_param = params.get("rA", 0)
-    rC_param = params.get("rC", 0)
+    vc = sim.vc
+    rA_param = vc.rA
+    rC_param = vc.rC
 
     mother_all = df["mother"].to_numpy()
     founder_mask = mother_all == -1
     comp_cols = [f"{c}{t}" for c in ("A", "C", "E") for t in (1, 2)]
     founders = {c: df[c].to_numpy()[founder_mask] for c in comp_cols}
 
-    # For per-generation dict params, resolve to founder sim generation value
-    G_sim, founder_sim_gen = schedule_span(params)
-
-    def _resolve_founder_val(val):
-        """Resolve a scalar or per-gen dict to the founder generation value."""
-        if isinstance(val, dict):
-            return resolve_per_gen_param(val, G_sim)[founder_sim_gen]
-        return val
+    # The configured value of each component in the founders' (first recorded) generation.
+    configured = {f"A{t}": vc.A[t - 1] for t in (1, 2)} | {f"C{t}": vc.C[t - 1] for t in (1, 2)}
+    for t in (1, 2):
+        E = vc.E[t - 1]
+        configured[f"E{t}"] = vc.E_per_gen(t, sim.span.G_sim)[sim.span.burnin] if isinstance(E, dict) else E
 
     # Variance checks for both traits. Under assortative mating the additive
     # variance inflates across generations (Bulmer), so the recorded "founders"
@@ -86,7 +82,7 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]
     # am_equilibrium check validates that inflation instead. Skip the
     # A-variance (and the dependent total) for any trait with active AM. C and
     # E are unaffected (drawn fresh each generation), so they remain asserted.
-    am_active = {t: am_relatedness_mode(params, t) != "none" for t in (1, 2)}
+    am_active = {t: am_relatedness_mode(sim.assortment, t) != "none" for t in (1, 2)}
     for t in [1, 2]:
         for comp in ["A", "C", "E"]:
             col = f"{comp}{t}"
@@ -99,7 +95,7 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]
                     observed=am_var,
                 )
             else:
-                results[f"variance_{col}"] = _check_variance(founders, col, _resolve_founder_val(params[col]))
+                results[f"variance_{col}"] = _check_variance(founders, col, configured[col])
 
     # Total variances, reported only: `simace validate`'s total_variance tests
     # them (ADR 0030). Var(A + C + E) directly, not the sum of component
@@ -134,7 +130,7 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]
         observed=float(rC_obs),
     )
 
-    rE_param = params.get("rE", 0.0)
+    rE_param = vc.rE
     rE_obs = safe_corrcoef(founders["E1"], founders["E2"])
     rE_ok = abs(rE_obs - rE_param) < 0.15 if not np.isnan(rE_obs) else rE_param == 0
     results["cross_trait_rE"] = _result(
@@ -158,7 +154,7 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]
     by_household: tuple[np.ndarray, np.ndarray] | None = None
     for t in [1, 2]:
         col = f"C{t}"
-        by_pair = transmission_coefficients(params, t)[1] != 0.0
+        by_pair = sim.c_transmission.coefficients(t)[1] != 0.0
         if by_pair and not nf_mask.any():
             results[f"c{t}_inheritance"] = _info("No non-founders to check C inheritance")
             continue
