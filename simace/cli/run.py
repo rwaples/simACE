@@ -601,11 +601,13 @@ def _build_plots(
     return True
 
 
-def _inbreeding_plan_line(params: Mapping[str, Any]) -> str:
+def _inbreeding_plan_line(params: Mapping[str, Any]) -> str | None:
+    """The dry run's inbreeding line: the plan, or why it is refused; None with inbreeding off."""
     try:
-        return json.dumps(plan_for(params).record())
+        plan = plan_for(params)
     except InbreedingRefused as exc:
         return f"refused: {exc}"
+    return None if plan.mode == "off" else json.dumps(plan.record())
 
 
 def _print_plan(
@@ -619,8 +621,8 @@ def _print_plan(
 ) -> None:
     for rep, first in to_compute:
         print(f"# rep {rep.rep}: write {rep.path(layout, RepArtifact.PARAMS)}")
-        if first == 0 and rep.params.get("inbreeding_mode", "off") != "off":
-            print(f"# rep {rep.rep}: inbreeding {_inbreeding_plan_line(rep.params)}")
+        if first == 0 and (line := _inbreeding_plan_line(rep.params)) is not None:
+            print(f"# rep {rep.rep}: inbreeding {line}")
         for stage in STAGES[first:until]:
             print(shlex.join(command(stage.name, stage.argv(rep, layout))))
     if include_plots:

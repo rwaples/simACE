@@ -225,8 +225,12 @@ The per-scenario record `simace run` writes after the scenario's plot and atlas 
 _Avoid_: plot sentinel, atlas manifest.
 
 **Config**:
-The *merged runtime parameter set* for a specific scenario — i.e., what comes out of `simace.config.load_config` after defaults are overridden by scenario keys. Distinct from a *config YAML file*, which is the on-disk source. In prose "the config" usually means the merged dict; when the file is meant, say "the config YAML" or "the scenario file".
+The *merged runtime parameter set* for a specific scenario — i.e., `Scenario.flat` from `simace.config.load_scenarios`, the defaults overridden by scenario keys. Distinct from a *config YAML file*, which is the on-disk source. In prose "the config" usually means the merged dict; when the file is meant, say "the config YAML" or "the scenario file".
 _Avoid_: settings, spec, parameter dict (acceptable internally but not the canonical name).
+
+**Parameter record**:
+One of the typed records in `simace.simulation.params` that own the reading of a group of parameter keys: `Span` (`G_ped`, `G_sim`, burn-in), `VarianceComponents` (A, C, E, `rA`, `rC`, `rE`), `Assortment` (mating model and the per-iteration assortment schedule the simulator mates on) and `CTransmission`. `SimulationParams` composes them into the simulator's input, which is also the parsed `params.yaml`. Each place parameters enter (config load, `params.yaml`, `report.yaml`, a gathered row, fitACE's projection) parses its mapping once into the records, and code past it takes records (ADR 0034).
+_Avoid_: params dict (for anything past a boundary).
 
 **Folder / scenario / replicate** are a strict 3-level hierarchy: every replicate belongs to exactly one scenario, every scenario to exactly one folder. There are no cross-folder scenarios and no scenarios without replicates.
 
