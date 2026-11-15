@@ -427,33 +427,25 @@ class SimulationParams:
 
     @classmethod
     def from_mapping(cls, m: Mapping[str, Any]) -> SimulationParams:
-        """Parse a flat parameter mapping: a resolved scenario, a ``params.yaml``, or a report's ``inputs.parameters``.
+        """Parse the parameters a rep was built with: a ``params.yaml``, or a report's ``inputs.parameters``.
 
-        Keys an older ``params.yaml`` lacks take :data:`LEGACY_DEFAULTS`.
+        Keys an older ``params.yaml`` lacks take :data:`LEGACY_DEFAULTS`. The
+        records check their own invariants; the checks that a simulation can
+        run on the parameters (``mating_lambda``, ``p_mztwin``, C transmission
+        feasibility, the inbreeding history size) are :meth:`create`'s. So a
+        report scored with a deliberately wrong coefficient still parses.
         """
-        return cls.create(
+        span = Span.from_mapping(m)
+        return cls(
             seed=m["seed"],
             N=m["N"],
-            G_ped=m["G_ped"],
-            G_sim=m.get("G_sim"),
+            span=span,
             mating_lambda=m["mating_lambda"],
             p_mztwin=m["p_mztwin"],
-            A1=m["A1"],
-            C1=m["C1"],
-            A2=m["A2"],
-            C2=m["C2"],
-            rA=m["rA"],
-            rC=m["rC"],
-            rE=m["rE"],
-            E1=m["E1"],
-            E2=m["E2"],
-            assort1=m["assort1"],
-            assort2=m["assort2"],
-            assort_matrix=m.get("assort_matrix"),
-            mating_model=_legacy(m, "mating_model"),
+            vc=VarianceComponents.from_mapping(m),
+            assortment=Assortment.from_mapping(m, span),
             c_transmission=CTransmission.from_mapping(m),
-            inbreeding_mode=_legacy(m, "inbreeding_mode"),
-            inbreeding_depth=_legacy(m, "inbreeding_depth"),
+            inbreeding=resolve(_legacy(m, "inbreeding_mode"), _legacy(m, "inbreeding_depth"), m["N"], span.G_sim),
         )
 
 

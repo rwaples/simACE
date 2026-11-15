@@ -43,6 +43,10 @@ Accepted and implemented 2026-11-15 for issue #86. The plan, its Codex review an
      `simulate(params)`, which reads only the record. The simulate stage builds the record from its flags.
    - The analysis parses `params.yaml`, and `simace validate` and the plots parse `report.yaml`, each with
      `SimulationParams.from_mapping`.
+   - `from_mapping` checks the records' own invariants but not whether a simulation can run on the
+     parameters (`mating_lambda`, `p_mztwin`, C transmission feasibility). Those checks are `create`'s, which
+     the simulator and config load run. So a report scored with a deliberately wrong coefficient, as
+     simACE-validate's power study does, still parses.
 4. **Each boundary parses once and passes records inward.** The quality checks, the recorded-pedigree truth, the
    calibrated tests, the effective-size expectations and the plots take the records. Examples:
    - `reference_corr(type, assortment, c_transmission, vc, t)`;
