@@ -217,18 +217,18 @@ class TestRunAnalysis:
         with open(analyze_outputs["plot_payload_yaml"], encoding="utf-8") as fh:
             payload = yaml.safe_load(fh)
         view = plotting_report_view(report, payload)
-        ci = view["cumulative_incidence"]["trait1"]
+        ci = view.sample.cumulative_incidence["trait1"]
         # Array (from payload) and scalar landmark (from report) sit together.
         assert "ages" in ci
         assert "half_target_age" in ci
         assert len(ci["ages"]) == len(ci["observed_values"])
         # Validation-derived per-generation table is reconstructed for plots.
-        assert view["per_generation"]
-        gen1 = view["per_generation"]["generation_1"]
+        assert view.per_generation
+        gen1 = view.per_generation["generation_1"]
         assert gen1["n"] is not None
         assert gen1["A1_cov_non_genetic"] is not None
         assert gen1["A1_cov_C"] is not None
         assert gen1["A1_cov_E"] is not None
-        assert view["parameters"].get("A1") is not None
-        assert view["parameters"]["max_degree"] == 2
-        assert view["parameters"]["skip_ne_coancestry"] is False
+        assert view.parameters.get("A1") is not None
+        assert view.parameters["max_degree"] == 2
+        assert view.parameters["skip_ne_coancestry"] is False

@@ -18,6 +18,7 @@ from simace.plotting.plot_table1 import build_table1_summary
 if TYPE_CHECKING:
     from simace.plotting.atlas_manifest import AtlasItem, PlotEntry
     from simace.plotting.plot_table1 import Table1Row, Table1Section, Table1Summary
+    from simace.plotting.stats_report import ReportView
 
 logger = logging.getLogger(__name__)
 
@@ -742,7 +743,7 @@ def assemble_html_atlas(
     *,
     plot_ext: str = "png",
     scenario_params: dict | None = None,
-    stats_data: list[dict] | None = None,
+    stats_data: list[ReportView] | None = None,
 ) -> None:
     """Combine atlas manifest entries into a single-page HTML atlas.
 

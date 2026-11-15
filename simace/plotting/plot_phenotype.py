@@ -76,6 +76,7 @@ from simace.plotting.stats_report import plotting_report_views
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from simace.plotting.stats_report import ReportView
     from simace.simulation.params import SimulationParams
 
 logger = logging.getLogger(__name__)
@@ -87,13 +88,13 @@ MAX_PLOT_POINTS = 200_000
 class RenderContext:
     """Shared inputs handed to every phenotype plot renderer."""
 
-    all_stats: list[dict]
+    all_stats: list[ReportView]
     df_samples: pl.DataFrame
     scenario: str
     censor_age: float
     subsample_note: str
-    #: The rep parameters the reference lines read (rep 1's report); None when its report has none.
-    sim: SimulationParams | None
+    #: The rep parameters the reference lines read (rep 1's report).
+    sim: SimulationParams
     gen_censoring: dict[int, list[float]] | None
     max_degree: int | None
     #: The scenario's calibrated-test verdict (``validation_summary.yaml``), or None before `simace validate`.
@@ -126,13 +127,13 @@ def _render_censoring(ctx: RenderContext, path: Path) -> None:
         save_placeholder_plot(path, "No censoring windows configured")
 
 
-def _resolve_artifact_max_degree(all_stats: list[dict]) -> int | None:
+def _resolve_artifact_max_degree(all_stats: list[ReportView]) -> int | None:
     """Return the relationship depth recorded by every replicate report.
 
     Legacy reports omit ``max_degree``. They remain plottable, but the legend
     must not claim a depth that the artifact cannot prove.
     """
-    values = [(stats.get("parameters") or {}).get("max_degree") for stats in all_stats]
+    values = [stats.parameters.get("max_degree") for stats in all_stats]
     recorded = [int(value) for value in values if value is not None]
     if not recorded:
         return None
@@ -155,7 +156,7 @@ PHENOTYPE_RENDERERS: tuple[PlotRenderSpec, ...] = (
             ctx.all_stats,
             p,
             ctx.scenario,
-            stats_key="pair_counts_ped",
+            scope="analysis_pedigree",
             generations_label="G_ped",
             max_degree=ctx.max_degree,
         ),
@@ -431,7 +432,7 @@ def main(
         scenario=scenario,
         censor_age=censor_age,
         subsample_note=subsample_note,
-        sim=all_stats[0].get("sim"),
+        sim=all_stats[0].sim,
         gen_censoring=gen_censoring,
         max_degree=max_degree,
         verdict=verdict,

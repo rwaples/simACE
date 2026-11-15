@@ -13,10 +13,12 @@ from __future__ import annotations
 __all__ = ["plot_am_equilibrium"]
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from simace.plotting.stats_report import ReportView
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -37,7 +39,7 @@ _CITATION = "Equilibrium theory: Herzig et al. (2026) Theor. Popul. Biol. 170:26
 
 
 def plot_am_equilibrium(
-    all_views: list[dict[str, Any]],
+    all_views: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
 ) -> None:
@@ -51,22 +53,21 @@ def plot_am_equilibrium(
     (the equilibrium is then ill-defined).
 
     Args:
-        all_views: Per-replicate report views, each with ``per_generation`` and
-            ``parameters`` (as produced by ``plotting_report_view``).
+        all_views: Per-replicate report views (``plotting_report_view``).
         output_path: Image path to write.
         scenario: Scenario label for the figure subtitle.
     """
-    per_gen_all = [v.get("per_generation", {}) for v in all_views]
+    per_gen_all = [v.per_generation for v in all_views]
     if not per_gen_all or not per_gen_all[0]:
         save_placeholder_plot(output_path, "No per-generation data")
         return
 
-    sim = all_views[0].get("sim")
-    if sim is not None and sim.mating_model != "standard":
+    sim = all_views[0].sim
+    if sim.mating_model != "standard":
         save_placeholder_plot(output_path, "No assortative mating (Wright-Fisher model)")
         return
 
-    if sim is None or not sim.assortment.any_active:
+    if not sim.assortment.any_active:
         save_placeholder_plot(output_path, "No assortative mating configured")
         return
     schedule = sim.assortment.schedule

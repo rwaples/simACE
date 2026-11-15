@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from simace.plotting.atlas_manifest import AtlasItem
+    from simace.plotting.stats_report import ReportView
 
 logger = logging.getLogger(__name__)
 
@@ -345,7 +346,7 @@ def _render_section_page(
 
 def _render_table1_page(
     pdf: PdfPages,
-    all_stats: list[dict],
+    all_stats: list[ReportView],
     scenario: str,
     params: dict,
 ) -> None:
@@ -482,7 +483,7 @@ def assemble_atlas(
     *,
     plot_ext: str = "png",
     scenario_params: dict | None = None,
-    stats_data: list[dict] | None = None,
+    stats_data: list[ReportView] | None = None,
 ) -> None:
     """Combine plots and section breaks into a multi-page PDF with captions.
 
@@ -501,7 +502,7 @@ def assemble_atlas(
         plot_ext: Image extension (default ``"png"``).
         scenario_params: If provided, a dict with key ``"scenario"`` and
             parameter names. A title page with all parameters is rendered first.
-        stats_data: If provided, a list of stats report dicts (one per replicate).
+        stats_data: If provided, the plotting views (one per replicate).
             A Table 1 page is rendered after the title page.
     """
     output_path = Path(output_path)

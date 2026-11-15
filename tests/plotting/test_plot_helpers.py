@@ -15,7 +15,7 @@ import polars as pl
 import pytest
 
 from simace.plotting.plot_utils import finalize_plot, save_placeholder_plot, sort_generation_keys
-from tests.conftest import sim_params
+from tests.conftest import report_view, sim_params
 
 # ---------------------------------------------------------------------------
 # sort_generation_keys
@@ -154,34 +154,38 @@ def sample_df():
 
 
 @pytest.fixture
-def minimal_stats():
-    """Minimal stats dict list (1 rep) for correlation plot functions."""
-    return [
-        {
-            "tetrachoric": {
-                "trait1": {
-                    "MZ": {"r": 0.8, "n_pairs": 20},
-                    "FS": {"r": 0.5, "n_pairs": 100},
-                },
-                "trait2": {
-                    "MZ": {"r": 0.7, "n_pairs": 20},
-                    "FS": {"r": 0.4, "n_pairs": 100},
-                },
+def minimal_tables():
+    """One rep's analysis-sample tables for correlation plot functions."""
+    return dict(
+        tetrachoric={
+            "trait1": {
+                "MZ": {"r": 0.8, "n_pairs": 20},
+                "FS": {"r": 0.5, "n_pairs": 100},
             },
-            "liability_correlations": {"trait1": {}, "trait2": {}},
-            "prevalence": {"trait1": 0.1, "trait2": 0.1},
-            "regression": {"trait1": {"r2": 0.3, "slope": -5, "intercept": 80}, "trait2": None},
-            "mortality": {"rates": [0.01] * 10, "decade_labels": [f"{i}0s" for i in range(10)]},
-            "cumulative_incidence": {
-                f"trait{t}": {
-                    "ages": list(range(100)),
-                    "observed_values": [i / 1000 for i in range(100)],
-                    "true_values": [i / 900 for i in range(100)],
-                }
-                for t in (1, 2)
+            "trait2": {
+                "MZ": {"r": 0.7, "n_pairs": 20},
+                "FS": {"r": 0.4, "n_pairs": 100},
             },
-        }
-    ]
+        },
+        liability_correlations={"trait1": {}, "trait2": {}},
+        prevalence={"trait1": 0.1, "trait2": 0.1},
+        regression={"trait1": {"r2": 0.3, "slope": -5, "intercept": 80}, "trait2": None},
+        mortality={"rates": [0.01] * 10, "decade_labels": [f"{i}0s" for i in range(10)]},
+        cumulative_incidence={
+            f"trait{t}": {
+                "ages": list(range(100)),
+                "observed_values": [i / 1000 for i in range(100)],
+                "true_values": [i / 900 for i in range(100)],
+            }
+            for t in (1, 2)
+        },
+    )
+
+
+@pytest.fixture
+def minimal_stats(minimal_tables):
+    """Minimal plotting views (1 rep) for correlation plot functions."""
+    return [report_view(**minimal_tables)]
 
 
 # ---------------------------------------------------------------------------
@@ -237,14 +241,14 @@ class TestPlaceholderPaths:
         from simace.plotting.plot_correlations import plot_tetrachoric_by_generation
 
         out = tmp_path / "tet_gen.png"
-        plot_tetrachoric_by_generation([{}], out, scenario="test")
+        plot_tetrachoric_by_generation([report_view()], out, scenario="test")
         assert out.exists()
 
     def test_heritability_no_data(self, tmp_path):
         from simace.plotting.plot_heritability import plot_heritability_by_generation
 
         out = tmp_path / "h2.png"
-        plot_heritability_by_generation([{}], out, scenario="test")
+        plot_heritability_by_generation([report_view()], out, scenario="test")
         assert out.exists()
 
     def test_parent_offspring_no_generation(self, tmp_path, sample_df):
@@ -252,7 +256,7 @@ class TestPlaceholderPaths:
 
         df = sample_df.drop("generation")
         out = tmp_path / "po.png"
-        plot_parent_offspring_liability(df, [{}], out, scenario="test")
+        plot_parent_offspring_liability(df, [report_view()], out, scenario="test")
         assert out.exists()
 
     def test_parent_offspring_with_params(self, tmp_path, sample_df):
@@ -260,28 +264,28 @@ class TestPlaceholderPaths:
 
         out = tmp_path / "po_params.png"
         sim = sim_params(A1=0.5, C1=0.3, A2=0.4, C2=0.2)
-        plot_parent_offspring_liability(sample_df, [{}], out, scenario="test", sim=sim)
+        plot_parent_offspring_liability(sample_df, [report_view()], out, scenario="test", sim=sim)
         assert out.exists()
 
     def test_cumulative_by_sex_no_data(self, tmp_path):
         from simace.plotting.plot_distributions import plot_cumulative_incidence_by_sex
 
         out = tmp_path / "ci_sex.png"
-        plot_cumulative_incidence_by_sex([{}], out, scenario="test")
+        plot_cumulative_incidence_by_sex([report_view()], out, scenario="test")
         assert out.exists()
 
     def test_cumulative_by_sex_gen_no_data(self, tmp_path):
         from simace.plotting.plot_distributions import plot_cumulative_incidence_by_sex_generation
 
         out = tmp_path / "ci_sg.png"
-        plot_cumulative_incidence_by_sex_generation([{}], out, scenario="test")
+        plot_cumulative_incidence_by_sex_generation([report_view()], out, scenario="test")
         assert out.exists()
 
     def test_censoring_windows_no_data(self, tmp_path):
         from simace.plotting.plot_distributions import plot_censoring_windows
 
         out = tmp_path / "cw.png"
-        plot_censoring_windows([{"censoring": None}], out, scenario="test")
+        plot_censoring_windows([report_view()], out, scenario="test")
         assert out.exists()
 
     def test_liability_violin_by_gen_no_gen(self, tmp_path, sample_df):
@@ -289,28 +293,28 @@ class TestPlaceholderPaths:
 
         df = sample_df.drop("generation")
         out = tmp_path / "lv_gen.png"
-        plot_liability_violin_by_generation(df, [{}], out, scenario="test")
+        plot_liability_violin_by_generation(df, [report_view()], out, scenario="test")
         assert out.exists()
 
     def test_censoring_confusion_no_data(self, tmp_path):
         from simace.plotting.plot_liability import plot_censoring_confusion
 
         out = tmp_path / "cc.png"
-        plot_censoring_confusion([{}], out, scenario="test")
+        plot_censoring_confusion([report_view()], out, scenario="test")
         assert out.exists()
 
     def test_censoring_cascade_no_data(self, tmp_path):
         from simace.plotting.plot_liability import plot_censoring_cascade
 
         out = tmp_path / "cascade.png"
-        plot_censoring_cascade([{}], out, scenario="test")
+        plot_censoring_cascade([report_view()], out, scenario="test")
         assert out.exists()
 
     def test_pedigree_counts_no_data(self, tmp_path):
         from simace.plotting.plot_pedigree_counts import plot_pedigree_relationship_counts
 
         out = tmp_path / "ped.png"
-        plot_pedigree_relationship_counts([{}], out, scenario="test")
+        plot_pedigree_relationship_counts([report_view()], out, scenario="test")
         assert out.exists()
 
     def test_pedigree_counts_uncomputed_codes_are_not_zeroes(self, tmp_path):
@@ -322,7 +326,9 @@ class TestPlaceholderPaths:
 
         counts = {code: (10 if cat.degree <= 2 else None) for code, cat in RELATIONSHIPS.items()}
         out = tmp_path / "ped_partial.png"
-        plot_pedigree_relationship_counts([{"pair_counts": counts}], out, scenario="test", max_degree=2)
+        plot_pedigree_relationship_counts(
+            [report_view(relationship_pair_counts=counts)], out, scenario="test", max_degree=2
+        )
         assert out.exists()
 
 
@@ -342,11 +348,11 @@ class TestFinalizePaths:
         assert out.exists()
         assert len(plt.get_fignums()) == 0
 
-    def test_joint_affection(self, tmp_path, sample_df, minimal_stats):
+    def test_joint_affection(self, tmp_path, sample_df, minimal_tables):
         from simace.plotting.plot_liability import plot_joint_affection
 
         # Add joint_affection and cross_trait_tetrachoric to stats
-        stats = minimal_stats[0].copy()
+        stats = dict(minimal_tables)
         stats["joint_affection"] = {
             "counts": {"both": 5, "trait1_only": 15, "trait2_only": 15, "neither": 165},
             "proportions": {"both": 0.025, "trait1_only": 0.075, "trait2_only": 0.075, "neither": 0.825},
@@ -354,7 +360,7 @@ class TestFinalizePaths:
         }
         stats["cross_trait_tetrachoric"] = {"same_person": {"r": 0.3, "se": 0.05, "n": 200}}
         out = tmp_path / "joint_aff.png"
-        plot_joint_affection([stats], out, scenario="test")
+        plot_joint_affection([report_view(**stats)], out, scenario="test")
         assert out.exists()
 
     def test_mate_correlation_heatmaps_have_cell_borders(self, tmp_path, monkeypatch):
@@ -366,7 +372,7 @@ class TestFinalizePaths:
             heatmap_kwargs.append(kwargs)
 
         monkeypatch.setattr(plot_liability.sns, "heatmap", fake_heatmap)
-        stats = [{"mate_correlation": {"matrix": [[0.1, 0.2], [0.3, 0.4]]}}]
+        stats = [report_view(pedigree={"mate_correlation": {"matrix": [[0.1, 0.2], [0.3, 0.4]]}})]
         out = tmp_path / "mate_correlation.png"
 
         plot_liability.plot_mate_correlation(stats, out, scenario="test")
@@ -387,12 +393,12 @@ class TestFinalizePaths:
 
         monkeypatch.setattr(plot_liability.sns, "heatmap", fake_heatmap)
         stats = [
-            {
-                "censoring_confusion": {
+            report_view(
+                censoring_confusion={
                     "trait1": {"tp": 50, "fn": 10, "fp": 2, "tn": 138, "n": 200},
                     "trait2": {"tp": 40, "fn": 15, "fp": 1, "tn": 144, "n": 200},
-                },
-            }
+                }
+            )
         ]
         out = tmp_path / "cc_borders.png"
 
@@ -410,12 +416,12 @@ class TestFinalizePaths:
         from simace.plotting.plot_liability import plot_censoring_confusion
 
         stats = [
-            {
-                "censoring_confusion": {
+            report_view(
+                censoring_confusion={
                     "trait1": {"tp": 50, "fn": 10, "fp": 2, "tn": 138, "n": 200},
                     "trait2": {"tp": 40, "fn": 15, "fp": 1, "tn": 144, "n": 200},
-                },
-            }
+                }
+            )
         ]
         out = tmp_path / "cc_full.png"
         plot_censoring_confusion(stats, out, scenario="test")
@@ -434,8 +440,8 @@ class TestFinalizePaths:
 
         monkeypatch.setattr(plot_liability, "finalize_plot", fake_finalize)
         stats = [
-            {
-                "censoring_cascade": {
+            report_view(
+                censoring_cascade={
                     "trait1": {
                         "gen1": {
                             "observed": 30,
@@ -456,8 +462,8 @@ class TestFinalizePaths:
                             "window": [20, 80],
                         },
                     },
-                },
-            }
+                }
+            )
         ]
         out = tmp_path / "cascade_spacing.png"
 
@@ -471,8 +477,8 @@ class TestFinalizePaths:
         from simace.plotting.plot_liability import plot_censoring_cascade
 
         stats = [
-            {
-                "censoring_cascade": {
+            report_view(
+                censoring_cascade={
                     "trait1": {
                         "gen1": {
                             "observed": 30,
@@ -497,8 +503,8 @@ class TestFinalizePaths:
                             "window": [20, 80],
                         },
                     },
-                },
-            }
+                }
+            )
         ]
         out = tmp_path / "cascade_full.png"
         plot_censoring_cascade(stats, out, scenario="test")
@@ -528,7 +534,7 @@ class TestFinalizePaths:
 
         from simace.plotting.plot_distributions import plot_death_age_distribution
 
-        stats = [{"mortality": {"rates": [1e-5] * 8, "decade_labels": [f"{i}0s" for i in range(8)]}}]
+        stats = [report_view(mortality={"rates": [1e-5] * 8, "decade_labels": [f"{i}0s" for i in range(8)]})]
         out = tmp_path / "mortality.png"
         plot_death_age_distribution(stats, 80.0, out, scenario="test")
         with Image.open(out) as im:
@@ -557,8 +563,8 @@ class TestFinalizePaths:
         ages = list(range(100))
         values = [i / 1000 for i in range(100)]
         stats = [
-            {
-                "cumulative_incidence_by_sex": {
+            report_view(
+                cumulative_incidence_by_sex={
                     "trait1": {
                         "female": {"ages": ages, "values": values, "n": 50, "prevalence": 0.1},
                         "male": {"ages": ages, "values": values, "n": 50, "prevalence": 0.12},
@@ -567,14 +573,14 @@ class TestFinalizePaths:
                         "female": {"ages": ages, "values": values, "n": 50, "prevalence": 0.08},
                         "male": {"ages": ages, "values": values, "n": 50, "prevalence": 0.09},
                     },
-                },
-            }
+                }
+            )
         ]
         out = tmp_path / "ci_sex.png"
         plot_cumulative_incidence_by_sex(stats, out, scenario="test")
         assert out.exists()
 
-    def test_cumulative_incidence_aj(self, tmp_path, minimal_stats):
+    def test_cumulative_incidence_aj(self, tmp_path, minimal_tables):
         from simace.plotting.plot_distributions import plot_cumulative_incidence_aj
 
         ages = list(range(100))
@@ -582,9 +588,9 @@ class TestFinalizePaths:
         aj_death = [i / 2000 for i in range(100)]
         aj_surv = [1.0 - aj_vals[i] - aj_death[i] for i in range(100)]
         stats = [
-            {
-                **minimal_stats[0],
-                "cumulative_incidence_aj": {
+            report_view(
+                **minimal_tables,
+                cumulative_incidence_aj={
                     "trait1": {
                         "ages": ages,
                         "aj_values": aj_vals,
@@ -606,7 +612,7 @@ class TestFinalizePaths:
                         "half_target_age": 55.0,
                     },
                 },
-            }
+            )
         ]
         out = tmp_path / "ci_aj.png"
         plot_cumulative_incidence_aj(stats, 100.0, out, scenario="test")
@@ -633,12 +639,12 @@ class TestFinalizePaths:
 
         monkeypatch.setattr(plot_distributions, "finalize_plot", fake_finalize)
         stats = [
-            {
-                "cumulative_incidence": {
+            report_view(
+                cumulative_incidence={
                     "trait1": {"ages": ages, "observed_values": observed_vals, "true_values": true_vals},
                     "trait2": {"ages": ages, "observed_values": observed_vals, "true_values": true_vals},
                 },
-                "cumulative_incidence_aj": {
+                cumulative_incidence_aj={
                     "trait1": {
                         "ages": ages,
                         "aj_values": aj_vals,
@@ -660,7 +666,7 @@ class TestFinalizePaths:
                         "half_target_age": 2.0,
                     },
                 },
-            }
+            )
         ]
         out = tmp_path / "ci_aj_true.png"
 
@@ -690,7 +696,7 @@ class TestFinalizePaths:
             plt.close(fig)
 
         monkeypatch.setattr(plot_distributions, "finalize_plot", fake_finalize)
-        stats = [{"cumulative_incidence_aj": {"trait1": trait, "trait2": trait}}]
+        stats = [report_view(cumulative_incidence_aj={"trait1": trait, "trait2": trait})]
         plot_distributions.plot_cumulative_incidence_aj(stats, 3.0, tmp_path / "ci_aj_nan.png", scenario="test")
 
         assert texts == ["AJ trait: 10.0%\nAJ death: 5.0%\nSurvival: 85.0%\nat age 1"] * 2
@@ -716,12 +722,12 @@ class TestFinalizePaths:
             }
 
         stats = [
-            {
-                "cumulative_incidence_aj_by_sex": {
+            report_view(
+                cumulative_incidence_aj_by_sex={
                     "trait1": {"female": per_sex(), "male": per_sex()},
                     "trait2": {"female": per_sex(), "male": per_sex()},
                 }
-            }
+            )
         ]
         out = tmp_path / "ci_aj_sex.png"
         plot_cumulative_incidence_aj_by_sex(stats, out, scenario="test")
@@ -748,8 +754,8 @@ class TestFinalizePaths:
             }
 
         stats = [
-            {
-                "cumulative_incidence_aj_by_sex_generation": {
+            report_view(
+                cumulative_incidence_aj_by_sex_generation={
                     "trait1": {
                         "gen0": {"female": per_sex(), "male": per_sex()},
                         "gen1": {"female": per_sex(), "male": per_sex()},
@@ -759,7 +765,7 @@ class TestFinalizePaths:
                         "gen1": {"female": per_sex(), "male": per_sex()},
                     },
                 }
-            }
+            )
         ]
         out = tmp_path / "ci_aj_sex_gen.png"
         plot_cumulative_incidence_aj_by_sex_generation(stats, out, scenario="test")
@@ -773,11 +779,11 @@ class TestFinalizePaths:
         )
 
         out2 = tmp_path / "aj_sex_missing.png"
-        plot_cumulative_incidence_aj_by_sex([{}], out2, scenario="test")
+        plot_cumulative_incidence_aj_by_sex([report_view()], out2, scenario="test")
         assert out2.exists()
 
         out3 = tmp_path / "aj_sex_gen_missing.png"
-        plot_cumulative_incidence_aj_by_sex_generation([{}], out3, scenario="test")
+        plot_cumulative_incidence_aj_by_sex_generation([report_view()], out3, scenario="test")
         assert out3.exists()
 
 
@@ -821,8 +827,8 @@ class TestTrueIncidenceCurve:
         from simace.plotting.plot_distributions import plot_cumulative_incidence_aj
 
         stats = [
-            {**_aj_payload(), **_empirical_payload([0.0, 0.2, 0.4])},
-            {**_aj_payload(), **_empirical_payload([0.0, 0.4, 0.6])},
+            report_view(**_aj_payload(), **_empirical_payload([0.0, 0.2, 0.4])),
+            report_view(**_aj_payload(), **_empirical_payload([0.0, 0.4, 0.6])),
         ]
         plot_cumulative_incidence_aj(stats, 2.0, tmp_path / "aj.png")
         assert len(drawn["True CIF"]) == 2
@@ -833,7 +839,7 @@ class TestTrueIncidenceCurve:
     def test_empirical_payload_without_true_values_fails(self, tmp_path, renderer):
         import simace.plotting.plot_distributions as plot_distributions
 
-        stats = [{**_aj_payload(), **_empirical_payload(None)}]
+        stats = [report_view(**_aj_payload(), **_empirical_payload(None))]
         with pytest.raises(KeyError, match="true_values"):
             getattr(plot_distributions, renderer)(stats, 2.0, tmp_path / "out.png")
         plt.close("all")
@@ -842,8 +848,8 @@ class TestTrueIncidenceCurve:
         from simace.plotting.plot_distributions import plot_cumulative_incidence_aj
 
         stats = [
-            {**_aj_payload(), **_empirical_payload([0.0, 0.2, 0.4])},
-            {**_aj_payload(), **_empirical_payload(None)},
+            report_view(**_aj_payload(), **_empirical_payload([0.0, 0.2, 0.4])),
+            report_view(**_aj_payload(), **_empirical_payload(None)),
         ]
         with pytest.raises(KeyError, match="true_values"):
             plot_cumulative_incidence_aj(stats, 2.0, tmp_path / "aj.png")
@@ -852,7 +858,7 @@ class TestTrueIncidenceCurve:
     def test_aj_only_input_renders_without_empirical_curves(self, tmp_path, drawn):
         from simace.plotting.plot_distributions import plot_cumulative_incidence_aj
 
-        plot_cumulative_incidence_aj([_aj_payload()], 2.0, tmp_path / "aj.png")
+        plot_cumulative_incidence_aj([report_view(**_aj_payload())], 2.0, tmp_path / "aj.png")
         assert len(drawn["AJ trait"]) == 2
         assert "Empirical" not in drawn
         assert "True CIF" not in drawn
@@ -864,5 +870,7 @@ class TestTrueIncidenceCurve:
         monkeypatch.setattr(
             plot_distributions, "save_placeholder_plot", lambda _path, message: messages.append(message)
         )
-        plot_distributions.plot_cumulative_incidence_aj([_empirical_payload(None)], 2.0, tmp_path / "aj.png")
+        plot_distributions.plot_cumulative_incidence_aj(
+            [report_view(**_empirical_payload(None))], 2.0, tmp_path / "aj.png"
+        )
         assert messages == ["No Aalen-Johansen data (re-run stats)"]

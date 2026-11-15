@@ -22,7 +22,7 @@ __all__ = [
 ]
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -34,6 +34,7 @@ if TYPE_CHECKING:
 
     import polars as pl
 
+    from simace.plotting.stats_report import ReportView
     from simace.simulation.params import SimulationParams
 
 from simace.analysis.stats.censoring import confusion_rates
@@ -209,15 +210,15 @@ def plot_liability_joint_affected_t2(
 
 def plot_liability_violin(
     df_samples: pl.DataFrame,
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
     subsample_note: str = "",
 ) -> None:
     """Split violin plot of liability by trait, split on affected status."""
     # Use pre-computed prevalence averaged across reps
-    prev1 = np.mean([s["prevalence"]["trait1"] for s in all_stats])
-    prev2 = np.mean([s["prevalence"]["trait2"] for s in all_stats])
+    prev1 = np.mean([s.sample.prevalence["trait1"] for s in all_stats])
+    prev2 = np.mean([s.sample.prevalence["trait2"] for s in all_stats])
 
     _fig, ax = plt.subplots(figsize=(8, 6))
     for i, trait_num in enumerate([1, 2]):
@@ -271,7 +272,7 @@ def plot_liability_violin(
 
 def plot_liability_violin_by_generation(
     df_samples: pl.DataFrame,
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
     subsample_note: str = "",
@@ -344,7 +345,7 @@ def plot_liability_violin_by_generation(
 
 def plot_liability_violin_by_sex_generation(
     df_samples: pl.DataFrame,
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
     subsample_note: str = "",
@@ -505,7 +506,7 @@ def plot_liability_components_by_generation(
 
 
 def plot_censoring_confusion(
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
 ) -> None:
@@ -513,8 +514,9 @@ def plot_censoring_confusion(
 
     Uses pre-computed censoring_confusion stats from the full phenotyped population (pre-ascertainment).
     """
-    stats_with_data = [s for s in all_stats if s.get("censoring_confusion")]
-    if not stats_with_data:
+    # Computed only under per-generation censoring windows.
+    confusions = [s.sample.censoring_confusion for s in all_stats if s.sample.censoring_confusion]
+    if not confusions:
         save_placeholder_plot(output_path, "No censoring confusion data")
         return
 
@@ -527,7 +529,7 @@ def plot_censoring_confusion(
         key = f"trait{trait}"
 
         # Average counts across reps
-        rep_data = [s["censoring_confusion"][key] for s in stats_with_data if key in s["censoring_confusion"]]
+        rep_data = [c[key] for c in confusions if key in c]
         if not rep_data:
             ax.text(0.5, 0.5, f"No data for trait {trait}", ha="center", va="center", transform=ax.transAxes)
             ax.set_title(f"Trait {trait}")
@@ -568,7 +570,7 @@ def plot_censoring_confusion(
 
 
 def plot_censoring_cascade(
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
 ) -> None:
@@ -576,8 +578,9 @@ def plot_censoring_cascade(
 
     Uses pre-computed censoring_cascade stats from the full phenotyped population (pre-ascertainment).
     """
-    stats_with_data = [s for s in all_stats if s.get("censoring_cascade")]
-    if not stats_with_data:
+    # Computed only under per-generation censoring windows.
+    cascades = [s.sample.censoring_cascade for s in all_stats if s.sample.censoring_cascade]
+    if not cascades:
         save_placeholder_plot(output_path, "No censoring cascade data")
         return
 
@@ -594,7 +597,7 @@ def plot_censoring_cascade(
         ax = axes[col]
         key = f"trait{trait}"
 
-        rep_data = [s["censoring_cascade"][key] for s in stats_with_data if key in s["censoring_cascade"]]
+        rep_data = [c[key] for c in cascades if key in c]
         if not rep_data:
             ax.text(0.5, 0.5, f"No data for trait {trait}", ha="center", va="center", transform=ax.transAxes)
             ax.set_title(f"Trait {trait}")
@@ -690,7 +693,7 @@ def plot_censoring_cascade(
 
 
 def plot_joint_affection(
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
 ) -> None:
@@ -702,7 +705,7 @@ def plot_joint_affection(
     keys = ["both", "trait1_only", "trait2_only", "neither"]
     avg_props = {}
     for k in keys:
-        avg_props[k] = np.mean([s["joint_affection"]["proportions"][k] for s in all_stats])
+        avg_props[k] = np.mean([s.sample.joint_affection["proportions"][k] for s in all_stats])
 
     matrix = np.array(
         [
@@ -713,7 +716,7 @@ def plot_joint_affection(
 
     avg_counts = {}
     for k in keys:
-        avg_counts[k] = np.mean([s["joint_affection"]["counts"][k] for s in all_stats])
+        avg_counts[k] = np.mean([s.sample.joint_affection["counts"][k] for s in all_stats])
 
     count_matrix = np.array(
         [
@@ -737,7 +740,7 @@ def plot_joint_affection(
     annotate_heatmap(ax, matrix, count_matrix)
 
     # Cross-trait tetrachoric correlation from pre-computed stats
-    r_tet_vals = [s.get("cross_trait_tetrachoric", {}).get("same_person", {}).get("r") for s in all_stats]
+    r_tet_vals = [s.sample.cross_trait_tetrachoric.get("same_person", {}).get("r") for s in all_stats]
     r_tet_vals = [v for v in r_tet_vals if v is not None]
 
     ax.set_xlabel("Trait 1")
@@ -750,7 +753,7 @@ def plot_joint_affection(
 
 
 def plot_mate_correlation(
-    all_stats: list[dict],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
     sim: SimulationParams | None = None,
@@ -767,8 +770,8 @@ def plot_mate_correlation(
     # Average observed matrices across replicates
     matrices = []
     for s in all_stats:
-        mc = s.get("mate_correlation")
-        if mc is not None:
+        mc = s.pedigree.mate_correlation
+        if mc:
             matrices.append(np.array(mc["matrix"]))
     if not matrices:
         save_placeholder_plot(output_path, "No mate correlation data")

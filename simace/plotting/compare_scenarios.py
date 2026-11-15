@@ -1156,7 +1156,7 @@ def _load_per_gen_prevalence(
     per_gen: dict[int, list[float]] = {}
     for path in report_paths:
         ps = plotting_report_view(load_yaml(path))
-        by_gen = (ps.get("prevalence") or {}).get("by_generation") or {}
+        by_gen = ps.sample.prevalence.get("by_generation") or {}
         for g_key, entry in by_gen.items():
             g = int(g_key)
             val = entry.get(f"trait{trait}")
@@ -1274,7 +1274,7 @@ OBSERVED_LIABILITY_ESTIMATOR_DEFS: tuple[tuple[str, str], ...] = (
 def _load_tetrachoric(stats_report_path: Path, trait: int) -> dict[str, float]:
     """Return a flat ``{MZ, FS, MO, FO, MHS, PHS, 1C}`` tetrachoric r dict."""
     ps = plotting_report_view(load_yaml(stats_report_path))
-    tet = (ps.get("tetrachoric") or {}).get(f"trait{trait}", {}) or {}
+    tet = ps.sample.tetrachoric.get(f"trait{trait}", {}) or {}
     out: dict[str, float] = {}
     for key, entry in tet.items():
         r = (entry or {}).get("r")

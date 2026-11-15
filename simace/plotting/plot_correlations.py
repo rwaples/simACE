@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
     import polars as pl
 
+    from simace.plotting.stats_report import ReportView
     from simace.simulation.params import SimulationParams
 
 import matplotlib.pyplot as plt
@@ -88,7 +89,7 @@ def _add_relationship_type_legend(fig: plt.Figure, sim: SimulationParams | None)
 
 
 def _mean_per_relationship_type(
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     extractor,
     relationship_types: list[str],
 ) -> dict[str, float]:
@@ -109,7 +110,7 @@ def _parametric_per_relationship_type(
     sim: SimulationParams | None,
     trait_num: int,
     relationship_types: list[str],
-    all_stats: Sequence[dict[str, Any]] = (),
+    all_stats: Sequence[ReportView] = (),
     generation: int | None = None,
 ) -> dict[str, float]:
     """The reference correlation per type: analytic where exact, else the rep-mean recorded-pedigree truth.
@@ -122,10 +123,7 @@ def _parametric_per_relationship_type(
     trait_key = f"trait{trait_num}"
     out: dict[str, float] = {}
     for ptype in relationship_types:
-        entries = [
-            truth_entry((s.get("truth_relationships") or {}).get(trait_key, {}).get(ptype), generation)
-            for s in all_stats
-        ]
+        entries = [truth_entry(s.truth_relationships.get(trait_key, {}).get(ptype), generation) for s in all_stats]
         truth = {ptype: {"r": truth_mean(entries, "r")}}
         ref = reference_corr(ptype, sim.assortment, sim.c_transmission, sim.vc, trait_num, truth)
         if ref is not None:
@@ -134,7 +132,7 @@ def _parametric_per_relationship_type(
 
 
 def plot_tetrachoric_sibling(
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str,
     sim: SimulationParams | None = None,
@@ -158,11 +156,11 @@ def plot_tetrachoric_sibling(
         trait_key = f"trait{trait_num}"
 
         observed, n_pairs = _observed_per_relationship_type(
-            [s.get("tetrachoric", {}).get(trait_key, {}) for s in all_stats], relationship_types
+            [s.sample.tetrachoric.get(trait_key, {}) for s in all_stats], relationship_types
         )
         liability = _mean_per_relationship_type(
             all_stats,
-            lambda s, pt, _tk=trait_key: s.get("liability_correlations", {}).get(_tk, {}).get(pt),
+            lambda s, pt, _tk=trait_key: s.sample.liability_correlations.get(_tk, {}).get(pt),
             relationship_types,
         )
         parametric = _parametric_per_relationship_type(sim, trait_num, relationship_types, all_stats)
@@ -189,7 +187,7 @@ def plot_tetrachoric_sibling(
 
 
 def plot_tetrachoric_by_generation(
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
     sim: SimulationParams | None = None,
@@ -201,7 +199,7 @@ def plot_tetrachoric_by_generation(
     shared across cells of the same trait row so generation-to-generation drift
     is directly comparable.
     """
-    gen_keys_sets = [set(s.get("tetrachoric_by_generation", {}).keys()) for s in all_stats]
+    gen_keys_sets = [set(s.sample.tetrachoric_by_generation.keys()) for s in all_stats]
     if not gen_keys_sets or not gen_keys_sets[0]:
         save_placeholder_plot(output_path, "No per-generation tetrachoric data")
         return
@@ -225,14 +223,14 @@ def plot_tetrachoric_by_generation(
             ax = axes[row, col]
 
             observed, n_pairs = _observed_per_relationship_type(
-                [s.get("tetrachoric_by_generation", {}).get(gen_key, {}).get(trait_key, {}) for s in all_stats],
+                [s.sample.tetrachoric_by_generation.get(gen_key, {}).get(trait_key, {}) for s in all_stats],
                 relationship_types,
             )
 
             liability = _mean_per_relationship_type(
                 all_stats,
                 lambda s, pt, _gk=gen_key, _tk=trait_key: (
-                    s.get("tetrachoric_by_generation", {}).get(_gk, {}).get(_tk, {}).get(pt, {}).get("liability_r")
+                    s.sample.tetrachoric_by_generation.get(_gk, {}).get(_tk, {}).get(pt, {}).get("liability_r")
                 ),
                 relationship_types,
             )
@@ -265,7 +263,7 @@ def plot_tetrachoric_by_generation(
 
 
 def plot_cross_trait_tetrachoric(
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
 ) -> None:
@@ -285,7 +283,7 @@ def plot_cross_trait_tetrachoric(
     # Collect generation data across reps
     gen_data: dict[int, list[float]] = {}
     for s in all_stats:
-        ct = s.get("cross_trait_tetrachoric", {})
+        ct = s.sample.cross_trait_tetrachoric
         by_gen = ct.get("same_person_by_generation", {})
         for gk, gv in by_gen.items():
             gen_num = int(gk.replace("gen", ""))
@@ -314,7 +312,7 @@ def plot_cross_trait_tetrachoric(
         )
 
         # Overall same-person r (averaged across reps)
-        overall_rs = [s.get("cross_trait_tetrachoric", {}).get("same_person", {}).get("r") for s in all_stats]
+        overall_rs = [s.sample.cross_trait_tetrachoric.get("same_person", {}).get("r") for s in all_stats]
         overall_rs = [r for r in overall_rs if r is not None]
         if overall_rs:
             mean_overall = np.mean(overall_rs)
@@ -341,7 +339,7 @@ def plot_cross_trait_tetrachoric(
     n_reps = max(len(all_stats), 1)
 
     observed, n_pairs = _observed_per_relationship_type(
-        [s.get("cross_trait_tetrachoric", {}).get("cross_person", {}) for s in all_stats], relationship_types
+        [s.sample.cross_trait_tetrachoric.get("cross_person", {}) for s in all_stats], relationship_types
     )
 
     if any(observed.values()):
@@ -364,7 +362,7 @@ def plot_cross_trait_tetrachoric(
 
 def plot_parent_offspring_liability(
     df_samples: pl.DataFrame,
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
     subsample_note: str = "",
@@ -468,7 +466,7 @@ def plot_parent_offspring_liability(
             rep_stats = [
                 po
                 for s in all_stats
-                if (po := s.get("parent_offspring_corr", {}).get(f"trait{trait_num}", {}).get(f"gen{gen}", {}))
+                if (po := s.sample.parent_offspring_corr.get(f"trait{trait_num}", {}).get(f"gen{gen}", {}))
                 and po.get("r") is not None
             ]
             mean_slope, mean_intercept, mean_r, mean_stderr, mean_n = mean_regression(
@@ -485,10 +483,7 @@ def plot_parent_offspring_liability(
             # where exact or the rep-mean recorded-pedigree truth (ADR 0025).
             if sim is not None:
                 truth_slope = truth_mean(
-                    [
-                        truth_entry((s.get("truth_midparent_slope") or {}).get(f"trait{trait_num}"), gen)
-                        for s in all_stats
-                    ],
+                    [truth_entry(s.truth_midparent_slope.get(f"trait{trait_num}"), gen) for s in all_stats],
                     "slope",
                 )
                 expected_slope = reference_midparent_slope(
@@ -513,8 +508,7 @@ def plot_parent_offspring_liability(
                 sex_slope_vals = []
                 for s in all_stats:
                     po_s = (
-                        s.get("parent_offspring_corr_by_sex", {})
-                        .get(sex_key, {})
+                        s.sample.parent_offspring_corr_by_sex.get(sex_key, {})
                         .get(f"trait{trait_num}", {})
                         .get(f"gen{gen}", {})
                     )
@@ -581,7 +575,7 @@ def plot_parent_offspring_liability(
 
 
 def plot_tetrachoric_by_sex(
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
     sim: SimulationParams | None = None,
@@ -596,7 +590,7 @@ def plot_tetrachoric_by_sex(
     sex_labels = [("female", "Female"), ("male", "Male")]
     n_reps = max(len(all_stats), 1)
 
-    if not any(s.get("tetrachoric_by_sex") for s in all_stats):
+    if not any(s.sample.tetrachoric_by_sex for s in all_stats):
         save_placeholder_plot(output_path, "No sex-stratified tetrachoric data")
         return
 
@@ -610,14 +604,14 @@ def plot_tetrachoric_by_sex(
             ax = axes[row_idx, col_idx]
 
             observed, n_pairs = _observed_per_relationship_type(
-                [s.get("tetrachoric_by_sex", {}).get(sex_key, {}).get(trait_key, {}) for s in all_stats],
+                [s.sample.tetrachoric_by_sex.get(sex_key, {}).get(trait_key, {}) for s in all_stats],
                 relationship_types,
             )
 
             liability = _mean_per_relationship_type(
                 all_stats,
                 lambda s, pt, _sk=sex_key, _tk=trait_key: (
-                    s.get("tetrachoric_by_sex", {}).get(_sk, {}).get(_tk, {}).get(pt, {}).get("liability_r")
+                    s.sample.tetrachoric_by_sex.get(_sk, {}).get(_tk, {}).get(pt, {}).get("liability_r")
                 ),
                 relationship_types,
             )

@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from simace.plotting.stats_report import ReportView
     from simace.simulation.params import SimulationParams
 
 import matplotlib.pyplot as plt
@@ -139,7 +140,7 @@ def _add_legend_if_labeled(ax: plt.Axes) -> None:
 
 
 def plot_heritability_by_generation(
-    all_views: list[dict[str, Any]],
+    all_views: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
 ) -> None:
@@ -148,7 +149,7 @@ def plot_heritability_by_generation(
     The A series is the narrow-sense heritability h². The C series is shown
     separately rather than folded into a broad-sense ``A + C`` panel.
     """
-    per_gen_all = [v.get("per_generation", {}) for v in all_views]
+    per_gen_all = [v.per_generation for v in all_views]
     if not per_gen_all or not per_gen_all[0]:
         save_placeholder_plot(output_path, "No per-generation data")
         return
@@ -157,7 +158,7 @@ def plot_heritability_by_generation(
     generations = [int(k.split("_")[1]) for k in gen_keys]
     x = np.array(generations, dtype=float)
 
-    sim = all_views[0].get("sim")
+    sim = all_views[0].sim
     component_specs = (
         ("A", "Additive genetic (A)", COLOR_OBSERVED, -0.06),
         ("C", "Common environment (C)", COLOR_EXPECTED, 0.06),
@@ -229,7 +230,7 @@ def plot_heritability_by_generation(
 
 
 def plot_ge_covariance_by_generation(
-    all_views: list[dict[str, Any]],
+    all_views: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
 ) -> None:
@@ -239,7 +240,7 @@ def plot_ge_covariance_by_generation(
     generation, so this diagnostic should fluctuate around zero on the
     recorded pedigree.
     """
-    per_gen_all = [v.get("per_generation", {}) for v in all_views]
+    per_gen_all = [v.per_generation for v in all_views]
     gen_keys = _generation_keys(per_gen_all)
     if not gen_keys:
         save_placeholder_plot(output_path, "No per-generation data")
@@ -286,12 +287,12 @@ def plot_ge_covariance_by_generation(
 
 
 def plot_snp_like_heritability_by_generation(
-    all_views: list[dict[str, Any]],
+    all_views: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
 ) -> None:
     """Plot realized Var(A)/Var(L) against the SNP-like h² target."""
-    per_gen_all = [v.get("per_generation", {}) for v in all_views]
+    per_gen_all = [v.per_generation for v in all_views]
     gen_keys = _generation_keys(per_gen_all)
     if not gen_keys:
         save_placeholder_plot(output_path, "No per-generation data")
@@ -330,7 +331,7 @@ def plot_snp_like_heritability_by_generation(
 
 
 def plot_heritability_by_sex_generation(
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
     sim: SimulationParams | None = None,
@@ -340,7 +341,7 @@ def plot_heritability_by_sex_generation(
     1x2 panel (one per trait). Each panel shows per-rep h² dots in two
     series: daughters (green) and sons (blue).
     """
-    has_data = any(s.get("parent_offspring_corr_by_sex") for s in all_stats)
+    has_data = any(s.sample.parent_offspring_corr_by_sex for s in all_stats)
     if not has_data:
         save_placeholder_plot(output_path, "No sex-stratified PO regression data")
         return
@@ -348,7 +349,7 @@ def plot_heritability_by_sex_generation(
     # Discover generations from data
     gen_set: set[int] = set()
     for s in all_stats:
-        po_sex = s.get("parent_offspring_corr_by_sex", {})
+        po_sex = s.sample.parent_offspring_corr_by_sex
         for sex_key in ["female", "male"]:
             for trait_key in ["trait1", "trait2"]:
                 for gk in po_sex.get(sex_key, {}).get(trait_key, {}):
@@ -369,7 +370,7 @@ def plot_heritability_by_sex_generation(
             ("male", "Sons", COLOR_MALE),
         ]:
             for rep_idx, s in enumerate(all_stats):
-                po_data = s.get("parent_offspring_corr_by_sex", {}).get(sex_key, {}).get(trait_key, {})
+                po_data = s.sample.parent_offspring_corr_by_sex.get(sex_key, {}).get(trait_key, {})
                 h2_vals = []
                 gen_vals = []
                 for gen in generations:
@@ -400,10 +401,7 @@ def plot_heritability_by_sex_generation(
                     sim.vc,
                     trait_num,
                     truth_mean(
-                        [
-                            truth_entry((s.get("truth_midparent_slope") or {}).get(f"trait{trait_num}"), gen)
-                            for s in all_stats
-                        ],
+                        [truth_entry(s.truth_midparent_slope.get(f"trait{trait_num}"), gen) for s in all_stats],
                         "slope",
                     ),
                 )
@@ -459,7 +457,7 @@ _OBSERVED_ESTIMATOR_LABELS: tuple[tuple[str, str], ...] = (
 
 
 def plot_observed_heritability(
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
     sim: SimulationParams | None = None,
@@ -481,8 +479,7 @@ def plot_observed_heritability(
       biased under non-threshold phenotype models (e.g. pure frailty).
 
     Args:
-        all_stats: per-replicate stats report dicts. Must contain
-            ``observed_h2_estimators`` and ``prevalence``.
+        all_stats: per-replicate plotting views.
         output_path: image path to save.
         scenario: scenario label (for subtitle).
         sim: the rep's parameters, for the observed-scale LTM reference
@@ -495,8 +492,8 @@ def plot_observed_heritability(
     }
 
     for s in all_stats:
-        est = s.get("observed_h2_estimators") or {}
-        prev = s.get("prevalence") or {}
+        est = s.observed_h2_estimators
+        prev = s.sample.prevalence
         for t in (1, 2):
             K = prev.get(f"trait{t}")
             if K is None or not (1e-3 <= float(K) <= 1.0 - 1e-3):

@@ -154,8 +154,8 @@ def test_report_view_and_gather_carry_the_truth(tmp_path):
     assert recorded["traits"]["trait1"]["midparent_slope"]["slope"] is not None
 
     view = plotting_report_view(report)
-    assert view["truth_relationships"]["trait1"]["MO"]["r"] == mo["r"]
-    assert view["truth_midparent_slope"]["trait2"] == recorded["traits"]["trait2"]["midparent_slope"]
+    assert view.truth_relationships["trait1"]["MO"]["r"] == mo["r"]
+    assert view.truth_midparent_slope["trait2"] == recorded["traits"]["trait2"]["midparent_slope"]
 
     row = extract_metrics(str(report_path))
     assert row["truth_r_MO_trait1"] == mo["r"]
@@ -171,7 +171,7 @@ def test_no_truth_block_without_transmission(tmp_path):
     recorded = report["truth"]["recorded_pedigree"]
     assert "limitations" not in recorded
     assert all("relationships" not in t for t in recorded["traits"].values())
-    assert plotting_report_view(report)["truth_relationships"] == {}
+    assert plotting_report_view(report).truth_relationships == {}
     row = extract_metrics(str(report_path))
     assert row["truth_r_MO_trait1"] is None
     assert row["Ctm_paternal2"] == 0.0

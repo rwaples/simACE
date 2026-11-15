@@ -3,11 +3,11 @@
 import pytest
 
 from simace.plotting.plot_phenotype import _resolve_artifact_max_degree
+from tests.conftest import report_view
 
 
-def _stats(max_degree: int | None) -> dict:
-    parameters = {} if max_degree is None else {"max_degree": max_degree}
-    return {"parameters": parameters}
+def _stats(max_degree: int | None):
+    return report_view(parameters={} if max_degree is None else {"max_degree": max_degree})
 
 
 def test_resolves_max_degree_from_all_replicates():

@@ -23,6 +23,7 @@ from simace.simulation.simulate import run_simulation
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
+    from simace.plotting.stats_report import ReportView
     from simace.simulation.params import Assortment, CTransmission, Span, VarianceComponents
 
 # Hypothesis profiles, selected by ``HYPOTHESIS_PROFILE`` (default ``fast``).
@@ -122,6 +123,44 @@ def sim_params(params: Mapping[str, Any] | None = None, /, **overrides: Any) -> 
     Keys the set leaves out take :data:`SIM_DEFAULTS`.
     """
     return SimulationParams.from_mapping({**SIM_DEFAULTS, **(params or {}), **overrides})
+
+
+def report_view(
+    *,
+    pedigree: Mapping[str, Any] | None = None,
+    sample_size: tuple[int, int] = (0, 0),
+    pedigree_size: tuple[int, int] = (0, 0),
+    observed_h2_estimators: dict[str, Any] | None = None,
+    per_generation: dict[str, dict[str, Any]] | None = None,
+    parameters: dict[str, Any] | None = None,
+    truth_relationships: dict[str, Any] | None = None,
+    truth_midparent_slope: dict[str, Any] | None = None,
+    **sample: Any,
+) -> ReportView:
+    """A plotting view of one rep built from just the tables a test sets.
+
+    The keyword tables are ``observed.analysis_sample``'s, by field name
+    (dense arrays included); ``pedigree`` is ``observed.analysis_pedigree``.
+    Both read as a report's: a table left out is ``{}``, a censoring table
+    ``None``. The sizes are ``(n_individuals, n_generations)``; ``sim``
+    parses ``parameters`` over :data:`SIM_DEFAULTS`.
+    """
+    from simace.analysis.sample_stats import AnalysisPedigreeStats, AnalysisSampleStats, ScopeSize
+    from simace.plotting.stats_report import ReportView
+
+    parameters = dict(parameters or {})
+    return ReportView(
+        sample_size=ScopeSize(*sample_size),
+        pedigree_size=ScopeSize(*pedigree_size),
+        sample=AnalysisSampleStats.from_report(sample),
+        pedigree=AnalysisPedigreeStats.from_report(dict(pedigree or {})),
+        observed_h2_estimators=observed_h2_estimators or {},
+        per_generation=per_generation or {},
+        parameters=parameters,
+        sim=sim_params(parameters),
+        truth_relationships=truth_relationships or {},
+        truth_midparent_slope=truth_midparent_slope or {},
+    )
 
 
 def reference_records(params: Mapping[str, Any]) -> tuple[Assortment, CTransmission, VarianceComponents]:

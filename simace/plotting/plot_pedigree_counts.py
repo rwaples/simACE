@@ -18,7 +18,7 @@ __all__ = ["plot_pedigree_relationship_counts"]
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
@@ -28,6 +28,9 @@ import matplotlib.pyplot as plt
 from simace.core.relationships import DEFAULT_MAX_DEGREE
 from simace.plotting.plot_style import PEDIGREE_COLORS
 from simace.plotting.plot_utils import finalize_plot, save_placeholder_plot
+
+if TYPE_CHECKING:
+    from simace.plotting.stats_report import ReportView
 
 logger = logging.getLogger(__name__)
 
@@ -147,9 +150,8 @@ _SHORT_LABELS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
-def _mean_stat(all_stats: list[dict[str, Any]], key: str) -> float | None:
-    """Return the mean of a top-level numeric stat across replicates, or None."""
-    vals = [s[key] for s in all_stats if key in s]
+def _mean(vals: list[int]) -> float | None:
+    """The mean across replicates, or None with no replicates."""
     if not vals:
         return None
     return sum(vals) / len(vals)
@@ -257,10 +259,10 @@ def _draw_mz_bracket(ax: plt.Axes, a: str, b: str) -> None:
 
 
 def plot_pedigree_relationship_counts(
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
-    stats_key: str = "pair_counts",
+    scope: Literal["analysis_sample", "analysis_pedigree"] = "analysis_sample",
     generations_label: str = "",
     max_degree: int | None = DEFAULT_MAX_DEGREE,
     legend_below: bool = False,
@@ -269,10 +271,11 @@ def plot_pedigree_relationship_counts(
     """Draw a proband-centric pedigree diagram with relationship pair counts.
 
     Args:
-        all_stats: Per-replicate stats dicts.
+        all_stats: Per-replicate plotting views.
         output_path: Where to save the figure.
         scenario: Scenario name for the title.
-        stats_key: Key in stats dict to read pair counts from.
+        scope: Whose pair counts and size to draw: the analysis sample's or
+            the analysis pedigree's.
         generations_label: Label appended to title (e.g. "G_ped = 6").
         max_degree: Extraction depth recorded by the run, named in the legend
             title. If None, omit the depth claim for a legacy artifact. Which
@@ -288,8 +291,12 @@ def plot_pedigree_relationship_counts(
     """
     output_path = Path(output_path)
 
-    # Check for pair_counts data
-    has_data = any(s.get(stats_key) for s in all_stats)
+    on_pedigree = scope == "analysis_pedigree"
+    pair_counts = [
+        s.pedigree.relationship_pair_counts if on_pedigree else s.sample.relationship_pair_counts for s in all_stats
+    ]
+    sizes = [s.pedigree_size if on_pedigree else s.sample_size for s in all_stats]
+    has_data = any(pair_counts)
     if not has_data:
         save_placeholder_plot(
             output_path,
@@ -303,8 +310,7 @@ def plot_pedigree_relationship_counts(
     counts: dict[str, float] = {}
     reps_per_code: dict[str, int] = {}
     n_reps = 0
-    for s in all_stats:
-        pc = s.get(stats_key)
+    for pc in pair_counts:
         if not pc:
             continue
         n_reps += 1
@@ -483,12 +489,8 @@ def plot_pedigree_relationship_counts(
         )
 
     # Population metadata annotation
-    if stats_key == "pair_counts_ped":
-        n_ind_key, n_gen_key = "n_individuals_ped", "n_generations_ped"
-    else:
-        n_ind_key, n_gen_key = "n_individuals", "n_generations"
-    mean_n_ind = _mean_stat(all_stats, n_ind_key)
-    mean_n_gen = _mean_stat(all_stats, n_gen_key)
+    mean_n_ind = _mean([size.n_individuals for size in sizes])
+    mean_n_gen = _mean([size.n_generations for size in sizes])
 
     footer_parts = [f"Mean across {n_reps} replicate{'s' if n_reps != 1 else ''}"]
     if mean_n_gen is not None:

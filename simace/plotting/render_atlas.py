@@ -25,6 +25,7 @@ from simace.plotting.plot_atlas_html import assemble_html_atlas
 
 if TYPE_CHECKING:
     from simace.plotting.atlas_manifest import AtlasItem
+    from simace.plotting.stats_report import ReportView
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ def render_atlas(
     *,
     plot_ext: str = "png",
     scenario_params: dict | None = None,
-    stats_data: list[dict] | None = None,
+    stats_data: list[ReportView] | None = None,
 ) -> None:
     """Render an atlas manifest, dispatching on the ``output_path`` extension.
 

@@ -11,7 +11,7 @@ import polars as pl
 import pytest
 
 from simace.core.relationships import RELATIONSHIP_TYPES
-from tests.conftest import sim_params
+from tests.conftest import report_view, sim_params
 
 matplotlib.use("Agg")
 
@@ -64,11 +64,8 @@ def minimal_params():
 
 @pytest.fixture
 def minimal_stats():
-    """Minimal stats report dict for Table 1 rendering."""
-    return {
-        "n_individuals": 500,
-        "n_males": 250,
-        "n_females": 250,
+    """Minimal plotting view for Table 1 rendering."""
+    tables = {
         "prevalence": {"trait1": 0.10, "trait2": 0.20},
         "joint_affection": {
             "counts": {"both": 10, "trait1_only": 40, "trait2_only": 90, "neither": 360},
@@ -95,8 +92,7 @@ def minimal_stats():
                 "male_2+": 0.2,
             },
         },
-        "parent_status": {"phenotyped": {"0": 100, "1": 200, "2": 200}},
-        "censoring": {
+        "censoring_windows": {
             "generations": {
                 "gen2": {
                     "n": 500,
@@ -144,6 +140,9 @@ def minimal_stats():
             },
         },
     }
+    return report_view(
+        sample_size=(500, 1), pedigree={"parent_status": {"phenotyped": {"0": 100, "1": 200, "2": 200}}}, **tables
+    )
 
 
 @pytest.fixture
@@ -515,12 +514,12 @@ def _make_pair_data(r=0.5, n=100, liab_r=None):
 def observed_binary_stats():
     """Minimal stats dict for observed-binary plot functions."""
     return [
-        {
-            "prevalence": {
+        report_view(
+            prevalence={
                 "trait1": {"overall": 0.10, "generations": [0, 1, 2], "prevalence": [0.09, 0.10, 0.11]},
                 "trait2": {"overall": 0.20, "generations": [0, 1, 2], "prevalence": [0.19, 0.20, 0.21]},
             },
-            "tetrachoric": {
+            tetrachoric={
                 "trait1": {
                     pt: _make_pair_data(0.5 - i * 0.05, 100 - i * 10) for i, pt in enumerate(RELATIONSHIP_TYPES)
                 },
@@ -528,17 +527,17 @@ def observed_binary_stats():
                     pt: _make_pair_data(0.5 - i * 0.05, 100 - i * 10) for i, pt in enumerate(RELATIONSHIP_TYPES)
                 },
             },
-            "liability_correlations": {
+            liability_correlations={
                 "trait1": {pt: 0.6 - i * 0.05 for i, pt in enumerate(RELATIONSHIP_TYPES)},
                 "trait2": {pt: 0.6 - i * 0.05 for i, pt in enumerate(RELATIONSHIP_TYPES)},
             },
-            "joint_affection": {
+            joint_affection={
                 "counts": {"both": 10, "trait1_only": 40, "trait2_only": 90, "neither": 360},
                 "proportions": {"both": 0.02, "trait1_only": 0.08, "trait2_only": 0.18, "neither": 0.72},
                 "n": 500,
                 "by_sex": {"female": 0.02, "male": 0.02},
             },
-            "cross_trait_tetrachoric": {
+            cross_trait_tetrachoric={
                 "same_person": {"r": 0.3, "se": 0.04, "n": 500},
                 "same_person_by_generation": {
                     "gen0": {"r": 0.28, "se": 0.06, "n": 160},
@@ -547,7 +546,7 @@ def observed_binary_stats():
                 },
                 "cross_person": {pt: _make_pair_data(0.2, 80) for pt in RELATIONSHIP_TYPES},
             },
-            "regression": {
+            regression={
                 "trait1": {
                     "slope": -12.0,
                     "intercept": 50.0,
@@ -567,7 +566,7 @@ def observed_binary_stats():
                     "n": 100,
                 },
             },
-            "family_size": {
+            family_size={
                 "mean": 2.3,
                 "median": 2.0,
                 "q1": 1.0,
@@ -585,13 +584,13 @@ def observed_binary_stats():
                     "male_2+": 0.2,
                 },
             },
-            "tetrachoric_by_sex": {
+            tetrachoric_by_sex={
                 sex: {
                     f"trait{t}": {pt: _make_pair_data(0.4, 50, liab_r=0.4) for pt in RELATIONSHIP_TYPES} for t in [1, 2]
                 }
                 for sex in ["female", "male"]
             },
-            "parent_offspring_corr_by_sex": {
+            parent_offspring_corr_by_sex={
                 sex: {
                     f"trait{t}": {
                         f"gen{g}": {
@@ -608,7 +607,7 @@ def observed_binary_stats():
                 }
                 for sex in ["female", "male"]
             },
-        }
+        )
     ]
 
 
@@ -641,8 +640,8 @@ def observed_binary_samples():
 def broad_h2_validations():
     """Minimal all_validations list for the per-generation heritability plots."""
     return [
-        {
-            "per_generation": {
+        report_view(
+            per_generation={
                 f"generation_{g}": {
                     "A1_var": 0.48,
                     "C1_var": 0.19,
@@ -662,8 +661,8 @@ def broad_h2_validations():
                 }
                 for g in [1, 2, 3]
             },
-            "parameters": {"A1": 0.5, "C1": 0.2, "A2": 0.5, "C2": 0.2},
-        }
+            parameters={"A1": 0.5, "C1": 0.2, "A2": 0.5, "C2": 0.2},
+        )
     ]
 
 
@@ -691,7 +690,7 @@ class TestPlotCorrelationsExpanded:
 
         before = plt.get_fignums()
         out = tmp_path / "tet_sex_empty.png"
-        plot_tetrachoric_by_sex([{}], out, scenario="test")
+        plot_tetrachoric_by_sex([report_view()], out, scenario="test")
         assert out.exists()
         assert plt.get_fignums() == before
 
@@ -710,7 +709,7 @@ class TestPlotCorrelationsExpanded:
 
         before = plt.get_fignums()
         out = tmp_path / "h2_sex_gen_empty.png"
-        plot_heritability_by_sex_generation([{}], out, scenario="test")
+        plot_heritability_by_sex_generation([report_view()], out, scenario="test")
         assert out.exists()
         assert plt.get_fignums() == before
 
@@ -727,13 +726,13 @@ class TestPlotCorrelationsExpanded:
 
         monkeypatch.setattr(plot_heritability, "finalize_plot", fake_finalize)
         stats = [
-            {
-                "prevalence": {"trait1": 0.1, "trait2": 0.2},
-                "observed_h2_estimators": {
+            report_view(
+                prevalence={"trait1": 0.1, "trait2": 0.2},
+                observed_h2_estimators={
                     "trait1": {"falconer": 0.1, "sibs": 0.1, "po": 0.1, "hs": 0.1, "cousins": 0.1},
                     "trait2": {"falconer": 0.2, "sibs": 0.2, "po": 0.2, "hs": 0.2, "cousins": 0.2},
                 },
-            }
+            )
         ]
         out = tmp_path / "observed_h2.png"
 
@@ -768,7 +767,7 @@ class TestPlotCorrelationsExpanded:
 
         before = plt.get_fignums()
         out = tmp_path / "ge_cov_gen_empty.png"
-        plot_ge_covariance_by_generation([{}], out, scenario="test")
+        plot_ge_covariance_by_generation([report_view()], out, scenario="test")
         assert out.exists()
         assert plt.get_fignums() == before
 
@@ -787,7 +786,7 @@ class TestPlotCorrelationsExpanded:
 
         before = plt.get_fignums()
         out = tmp_path / "snp_like_h2_gen_empty.png"
-        plot_snp_like_heritability_by_generation([{}], out, scenario="test")
+        plot_snp_like_heritability_by_generation([report_view()], out, scenario="test")
         assert out.exists()
         assert plt.get_fignums() == before
 
@@ -823,6 +822,6 @@ class TestPlotDistributionsExpanded:
 
         before = plt.get_fignums()
         out = tmp_path / "family_struct_empty.png"
-        plot_family_structure([{}], out, scenario="test")
+        plot_family_structure([report_view()], out, scenario="test")
         assert out.exists()
         assert plt.get_fignums() == before

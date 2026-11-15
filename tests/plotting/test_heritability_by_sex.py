@@ -2,28 +2,30 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import pytest
 
 from simace.plotting import plot_heritability
-from tests.conftest import sim_params
+from tests.conftest import report_view, sim_params
 
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from simace.plotting.stats_report import ReportView
+
 _PARAMS = {"A1": 0.5, "C1": 0.2, "E1": 0.3, "A2": 0.5, "C2": 0.2, "E2": 0.3, "assort1": 0.0, "assort2": 0.0}
 
 
-def _stats(truth_by_gen: dict[int, float] | None = None) -> list[dict[str, Any]]:
+def _stats(truth_by_gen: dict[int, float] | None = None) -> list[ReportView]:
     fit = {"slope": 0.6}
     by_sex = {sex: {f"trait{t}": {"gen2": fit, "gen3": fit} for t in (1, 2)} for sex in ("female", "male")}
-    stats: dict[str, Any] = {"parent_offspring_corr_by_sex": by_sex}
+    truth = {}
     if truth_by_gen is not None:
         entry = {"slope": 0.0, "by_generation": {g: {"slope": v} for g, v in truth_by_gen.items()}}
-        stats["truth_midparent_slope"] = {"trait1": entry, "trait2": entry}
-    return [stats]
+        truth = {"trait1": entry, "trait2": entry}
+    return [report_view(parent_offspring_corr_by_sex=by_sex, truth_midparent_slope=truth)]
 
 
 def _expected_lines(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, stats, params) -> list[tuple[list, list]]:

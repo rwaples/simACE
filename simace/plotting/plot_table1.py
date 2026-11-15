@@ -11,13 +11,16 @@ __all__ = [
 import logging
 from dataclasses import dataclass
 from statistics import mean
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import FancyBboxPatch
 
 from simace.analysis.stats.incidence import age_at_incidence_fraction, per_1000_person_years
+
+if TYPE_CHECKING:
+    from simace.plotting.stats_report import ReportView
 
 logger = logging.getLogger(__name__)
 
@@ -91,8 +94,8 @@ def _fmt_split_f(vals: list, decimals: int = 2) -> tuple[str, str]:
 # ---------------------------------------------------------------------------
 
 
-def _safe_get(d: dict, *keys, default=None):
-    """Nested dict get."""
+def _safe_get(d: dict | None, *keys, default=None):
+    """Nested dict get; ``None`` (a table the rep did not compute) gives ``default``."""
     for k in keys:
         if not isinstance(d, dict):
             return default
@@ -118,9 +121,9 @@ def _compute_aoo_quartiles(ci_data: dict) -> dict:
     }
 
 
-def _sex_n(stats: dict, trait: str = "trait1"):
+def _sex_n(stats: ReportView, trait: str = "trait1"):
     """Extract female/male n from cumulative_incidence_by_sex."""
-    by_sex = _safe_get(stats, "cumulative_incidence_by_sex", trait, default={})
+    by_sex = _safe_get(stats.sample.cumulative_incidence_by_sex, trait, default={})
     f_n = _safe_get(by_sex, "female", "n")
     m_n = _safe_get(by_sex, "male", "n")
     return f_n, m_n
@@ -173,7 +176,7 @@ class Table1Summary:
 
 
 def build_table1_summary(
-    all_stats: list[dict],
+    all_stats: list[ReportView],
     scenario_params: dict,
     scenario: str = "",
 ) -> Table1Summary:
@@ -193,10 +196,10 @@ def build_table1_summary(
 
     n_reps = len(all_stats)
     s0 = all_stats[0]
-    n_ind = s0.get("n_individuals")
-    n_ped_val, n_ped_rng = _fmt_split([s.get("n_individuals_ped") for s in all_stats])
-    n_gen = s0.get("n_generations")
-    n_gen_ped = s0.get("n_generations_ped")
+    n_ind = s0.sample_size.n_individuals
+    n_ped_val, n_ped_rng = _fmt_split([s.pedigree_size.n_individuals for s in all_stats])
+    n_gen = s0.sample_size.n_generations
+    n_gen_ped = s0.pedigree_size.n_generations
     gens = " / ".join(str(g) if g else "\u2014" for g in (n_gen_ped, n_gen))
 
     f_n = _sex_n(s0, "trait1")[0]
@@ -223,7 +226,7 @@ def build_table1_summary(
     def _dist_line(stats_key):
         parts = []
         for k in ["1", "2", "3", "4+"]:
-            vals = [_safe_get(s, "family_size", stats_key, k) for s in all_stats]
+            vals = [_safe_get(s.sample.family_size, stats_key, k) for s in all_stats]
             clean = [v for v in vals if v is not None]
             pct = _fmt_pct(mean(clean)) if clean else "\u2014"
             parts.append(f"{k}: {pct}")
@@ -232,15 +235,15 @@ def build_table1_summary(
     def _person_dist_line():
         parts = []
         for k in ["0", "1", "2", "3", "4+"]:
-            vals = [_safe_get(s, "family_size", "person_offspring_dist", k) for s in all_stats]
+            vals = [_safe_get(s.sample.family_size, "person_offspring_dist", k) for s in all_stats]
             clean = [v for v in vals if v is not None]
             pct = _fmt_pct(mean(clean)) if clean else "\u2014"
             parts.append(f"{k}: {pct}")
         return " / ".join(parts)
 
     def _mates_line(sex):
-        m1 = [_safe_get(s, "family_size", "mates_by_sex", f"{sex}_1") for s in all_stats]
-        m2 = [_safe_get(s, "family_size", "mates_by_sex", f"{sex}_2+") for s in all_stats]
+        m1 = [_safe_get(s.sample.family_size, "mates_by_sex", f"{sex}_1") for s in all_stats]
+        m2 = [_safe_get(s.sample.family_size, "mates_by_sex", f"{sex}_2+") for s in all_stats]
         c1 = [v for v in m1 if v is not None]
         c2 = [v for v in m2 if v is not None]
         p1 = _fmt_pct(mean(c1)) if c1 else "\u2014"
@@ -257,7 +260,7 @@ def build_table1_summary(
         _value_range("Case ascertainment ratio", car_val, car_rng, muted=not car_active),
     ]
 
-    v, rng = _fmt_split_f([_safe_get(s, "family_size", "mean") for s in all_stats], 2)
+    v, rng = _fmt_split_f([_safe_get(s.sample.family_size, "mean") for s in all_stats], 2)
     population_rows.extend(
         [
             _value_range("Offspring per mating, mean", v, rng),
@@ -267,11 +270,15 @@ def build_table1_summary(
             _span("Mates per father (1 / 2+)", _mates_line("male")),
         ]
     )
-    v, rng = _fmt_split_pct([_safe_get(s, "family_size", "frac_with_full_sib") for s in all_stats])
+    v, rng = _fmt_split_pct([_safe_get(s.sample.family_size, "frac_with_full_sib") for s in all_stats])
     population_rows.append(_value_range("With \u2265 1 full sib phenotyped, %", v, rng))
 
-    ps_pheno = {str(k): [_safe_get(s, "parent_status", "phenotyped", str(k)) for s in all_stats] for k in [0, 1, 2]}
-    ps_ped = {str(k): [_safe_get(s, "parent_status", "in_pedigree", str(k)) for s in all_stats] for k in [0, 1, 2]}
+    ps_pheno = {
+        str(k): [_safe_get(s.pedigree.parent_status, "phenotyped", str(k)) for s in all_stats] for k in [0, 1, 2]
+    }
+    ps_ped = {
+        str(k): [_safe_get(s.pedigree.parent_status, "in_pedigree", str(k)) for s in all_stats] for k in [0, 1, 2]
+    }
 
     def _parent_pct(counts_list):
         return [c / n_ind if c is not None and n_ind else None for c in counts_list]
@@ -292,7 +299,7 @@ def build_table1_summary(
 
     censor_age = p.get("censor_age", "—")
     population_rows.append(_value_range("Maximum follow-up age", f"{censor_age} years"))
-    total_py = [_safe_get(s, "person_years", "total") for s in all_stats]
+    total_py = [_safe_get(s.sample.person_years, "total") for s in all_stats]
     if any(v is not None for v in total_py):
         v, rng = _fmt_split(total_py)
         population_rows.append(_value_range("Total person-years of follow-up", v, rng))
@@ -300,7 +307,7 @@ def build_table1_summary(
         if mean_fu:
             v, rng = _fmt_split_f(mean_fu, 1)
             population_rows.append(_value_range("Mean follow-up per person, years", v, rng))
-    deaths = [_safe_get(s, "person_years", "deaths") for s in all_stats]
+    deaths = [_safe_get(s.sample.person_years, "deaths") for s in all_stats]
     if any(d is not None for d in deaths):
         v, rng = _fmt_split(deaths)
         population_rows.append(_value_range("Deaths during follow-up, n", v, rng))
@@ -310,15 +317,15 @@ def build_table1_summary(
             round(p * n) if p is not None and n is not None else None for p, n in zip(prev_list, n_list, strict=True)
         ]
 
-    fprev1 = [_safe_get(s, "cumulative_incidence_by_sex", "trait1", "female", "prevalence") for s in all_stats]
-    mprev1 = [_safe_get(s, "cumulative_incidence_by_sex", "trait1", "male", "prevalence") for s in all_stats]
-    fprev2 = [_safe_get(s, "cumulative_incidence_by_sex", "trait2", "female", "prevalence") for s in all_stats]
-    mprev2 = [_safe_get(s, "cumulative_incidence_by_sex", "trait2", "male", "prevalence") for s in all_stats]
-    fn1 = [_safe_get(s, "cumulative_incidence_by_sex", "trait1", "female", "n") for s in all_stats]
-    mn1 = [_safe_get(s, "cumulative_incidence_by_sex", "trait1", "male", "n") for s in all_stats]
-    fn2 = [_safe_get(s, "cumulative_incidence_by_sex", "trait2", "female", "n") for s in all_stats]
-    mn2 = [_safe_get(s, "cumulative_incidence_by_sex", "trait2", "male", "n") for s in all_stats]
-    total_py_list = [_safe_get(s, "person_years", "total") for s in all_stats]
+    fprev1 = [_safe_get(s.sample.cumulative_incidence_by_sex, "trait1", "female", "prevalence") for s in all_stats]
+    mprev1 = [_safe_get(s.sample.cumulative_incidence_by_sex, "trait1", "male", "prevalence") for s in all_stats]
+    fprev2 = [_safe_get(s.sample.cumulative_incidence_by_sex, "trait2", "female", "prevalence") for s in all_stats]
+    mprev2 = [_safe_get(s.sample.cumulative_incidence_by_sex, "trait2", "male", "prevalence") for s in all_stats]
+    fn1 = [_safe_get(s.sample.cumulative_incidence_by_sex, "trait1", "female", "n") for s in all_stats]
+    mn1 = [_safe_get(s.sample.cumulative_incidence_by_sex, "trait1", "male", "n") for s in all_stats]
+    fn2 = [_safe_get(s.sample.cumulative_incidence_by_sex, "trait2", "female", "n") for s in all_stats]
+    mn2 = [_safe_get(s.sample.cumulative_incidence_by_sex, "trait2", "male", "n") for s in all_stats]
+    total_py_list = [_safe_get(s.sample.person_years, "total") for s in all_stats]
 
     def _incidence_rate(prev_list, n_sex_list, py_total_list, n_total):
         rates = []
@@ -334,7 +341,7 @@ def build_table1_summary(
     def _aoo_sex_quartile(all_stats, trait, sex, key):
         vals = []
         for s in all_stats:
-            ci = _safe_get(s, "cumulative_incidence_by_sex", trait, sex, default={})
+            ci = _safe_get(s.sample.cumulative_incidence_by_sex, trait, sex, default={})
             q = _compute_aoo_quartiles(ci)
             if q[key] is not None:
                 vals.append(q[key])
@@ -376,21 +383,21 @@ def build_table1_summary(
                 ),
             )
         )
-    coaff_f = [_safe_get(s, "joint_affection", "by_sex", "female") for s in all_stats]
-    coaff_m = [_safe_get(s, "joint_affection", "by_sex", "male") for s in all_stats]
+    coaff_f = [_safe_get(s.sample.joint_affection, "by_sex", "female") for s in all_stats]
+    coaff_m = [_safe_get(s.sample.joint_affection, "by_sex", "male") for s in all_stats]
     disease_rows.append(Table1Row("Co-affected, %", (_fmt_range_pct(coaff_f), _fmt_range_pct(coaff_m), "", "")))
 
     censoring_rows = []
-    cascade0 = _safe_get(s0, "censoring_cascade", "trait1", default={})
+    cascade0 = _safe_get(s0.sample.censoring_cascade, "trait1", default={})
     gen_keys = sorted(cascade0.keys()) if cascade0 else []
     for gk in gen_keys:
-        gen_n = _safe_get(s0, "censoring_cascade", "trait1", gk, "n_gen")
-        window = _safe_get(s0, "censoring_cascade", "trait1", gk, "window")
+        gen_n = _safe_get(s0.sample.censoring_cascade, "trait1", gk, "n_gen")
+        window = _safe_get(s0.sample.censoring_cascade, "trait1", gk, "window")
         n_str = _fmt_int(gen_n)
         win_str = f"ages {window[0]:.0f}\u2013{window[1]:.0f}" if window else ""
-        obs1 = [_safe_get(s, "censoring_cascade", "trait1", gk, "observed") for s in all_stats]
-        obs2 = [_safe_get(s, "censoring_cascade", "trait2", gk, "observed") for s in all_stats]
-        gn = [_safe_get(s, "censoring_cascade", "trait1", gk, "n_gen") for s in all_stats]
+        obs1 = [_safe_get(s.sample.censoring_cascade, "trait1", gk, "observed") for s in all_stats]
+        obs2 = [_safe_get(s.sample.censoring_cascade, "trait2", gk, "observed") for s in all_stats]
+        gn = [_safe_get(s.sample.censoring_cascade, "trait1", gk, "n_gen") for s in all_stats]
         prev_g1 = [o / n if o is not None and n else None for o, n in zip(obs1, gn, strict=True)]
         prev_g2 = [o / n if o is not None and n else None for o, n in zip(obs2, gn, strict=True)]
         censoring_rows.append(
@@ -403,8 +410,8 @@ def build_table1_summary(
 
     mort_per_1k = []
     for s in all_stats:
-        deaths = _safe_get(s, "person_years", "deaths")
-        total = _safe_get(s, "person_years", "total")
+        deaths = _safe_get(s.sample.person_years, "deaths")
+        total = _safe_get(s.sample.person_years, "total")
         if deaths is not None and total and total > 0:
             mort_per_1k.append(per_1000_person_years(deaths, total))
     if mort_per_1k:
@@ -772,7 +779,7 @@ def _draw_model_row(fig, ax, y: float, section: Table1Section, row: Table1Row, s
 
 
 def render_table1_figure(
-    all_stats: list[dict],
+    all_stats: list[ReportView],
     scenario_params: dict,
     scenario: str = "",
 ) -> plt.Figure:

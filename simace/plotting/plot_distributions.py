@@ -34,6 +34,8 @@ if TYPE_CHECKING:
 
     import polars as pl
 
+    from simace.plotting.stats_report import ReportView
+
 from simace.analysis.stats.incidence import age_at_incidence_fraction
 from simace.plotting.plot_style import (
     COLOR_AFFECTED,
@@ -55,7 +57,7 @@ logger = logging.getLogger(__name__)
 
 
 def plot_death_age_distribution(
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     censor_age: float,
     output_path: str | Path,
     scenario: str = "",
@@ -74,9 +76,9 @@ def plot_death_age_distribution(
         death_axes = [axes[0, 1], axes[1, 1]]
 
     # Average mortality rates across reps
-    all_rates = np.array([s["mortality"]["rates"] for s in all_stats])
+    all_rates = np.array([s.sample.mortality["rates"] for s in all_stats])
     mean_rates = all_rates.mean(axis=0)
-    decade_labels = all_stats[0]["mortality"]["decade_labels"]
+    decade_labels = all_stats[0].sample.mortality["decade_labels"]
 
     # Mortality rate per decade
     rate_ax.bar(decade_labels, mean_rates, edgecolor="black", alpha=0.7)
@@ -152,7 +154,7 @@ def plot_trait_phenotype(
 
 def plot_trait_regression(
     df_samples: pl.DataFrame,
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
     subsample_note: str = "",
@@ -180,9 +182,9 @@ def plot_trait_regression(
 
         # Get regression stats from pre-computed stats (averaged across reps)
         reg_stats = [
-            s["regression"][f"trait{trait_num}"]
+            s.sample.regression[f"trait{trait_num}"]
             for s in all_stats
-            if s["regression"].get(f"trait{trait_num}") is not None
+            if s.sample.regression.get(f"trait{trait_num}") is not None
         ]
         if not reg_stats and len(x) < 2:
             continue
@@ -242,17 +244,17 @@ def plot_trait_regression(
 
 
 def plot_cumulative_incidence(
-    all_stats: list[dict[str, Any]], censor_age: float, output_path: str | Path, scenario: str = ""
+    all_stats: list[ReportView], censor_age: float, output_path: str | Path, scenario: str = ""
 ) -> None:
     """Plot cumulative incidence by age, mean +/- band across reps."""
     _fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
 
     for trait_num, ax in zip([1, 2], axes, strict=True):
         key = f"trait{trait_num}"
-        ages = np.array(all_stats[0]["cumulative_incidence"][key]["ages"])
+        ages = np.array(all_stats[0].sample.cumulative_incidence[key]["ages"])
 
-        all_obs = np.array([s["cumulative_incidence"][key]["observed_values"] for s in all_stats])
-        all_true = np.array([s["cumulative_incidence"][key]["true_values"] for s in all_stats])
+        all_obs = np.array([s.sample.cumulative_incidence[key]["observed_values"] for s in all_stats])
+        all_true = np.array([s.sample.cumulative_incidence[key]["true_values"] for s in all_stats])
         mean_true = all_true.mean(axis=0)
 
         # True incidence (gray)
@@ -312,7 +314,7 @@ def plot_cumulative_incidence(
                     zorder=4,
                 )
         # Annotation box: prevalence and censoring rates
-        prev = np.mean([s["prevalence"][key] for s in all_stats])
+        prev = np.mean([s.sample.prevalence[key] for s in all_stats])
         true_prev = mean_true[-1]
         censored_pct = (true_prev - prev) * 100
         ax.text(
@@ -353,20 +355,20 @@ def _plot_sex_curves(ax: plt.Axes, cells: list[dict[str, Any]], value_field: str
 
 
 def _plot_incidence_by_sex(
-    all_stats: list[dict[str, Any]],
+    tables: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str,
     *,
-    stats_key: str,
+    name: str,
     value_field: str,
     linewidth: float,
     ylabel: str,
     empty_message: str,
 ) -> None:
-    """One panel per trait, one curve per sex, from ``stats[stats_key][trait][sex]``."""
-    stats_with_data = [s for s in all_stats if s.get(stats_key)]
-    if not stats_with_data:
-        logger.warning("Skipping %s: no data in stats", stats_key)
+    """One panel per trait, one curve per sex, from each rep's ``table[trait][sex]``."""
+    tables = [table for table in tables if table]
+    if not tables:
+        logger.warning("Skipping %s: no data in stats", name)
         save_placeholder_plot(output_path, empty_message)
         return
 
@@ -376,7 +378,7 @@ def _plot_incidence_by_sex(
         key = f"trait{trait_num}"
         _plot_sex_curves(
             ax,
-            [s[stats_key].get(key, {}) for s in stats_with_data],
+            [table.get(key, {}) for table in tables],
             value_field,
             linewidth,
         )
@@ -389,25 +391,25 @@ def _plot_incidence_by_sex(
 
 
 def _plot_incidence_by_sex_generation(
-    all_stats: list[dict[str, Any]],
+    tables: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str,
     *,
-    stats_key: str,
+    name: str,
     value_field: str,
     linewidth: float,
     ylabel: str,
     empty_message: str,
 ) -> None:
-    """A trait-by-generation grid, one curve per sex, from ``stats[stats_key][trait][gen][sex]``."""
-    stats_with_data = [s for s in all_stats if s.get(stats_key)]
-    if not stats_with_data:
-        logger.warning("Skipping %s: no data in stats", stats_key)
+    """A trait-by-generation grid, one curve per sex, from each rep's ``table[trait][gen][sex]``."""
+    tables = [table for table in tables if table]
+    if not tables:
+        logger.warning("Skipping %s: no data in stats", name)
         save_placeholder_plot(output_path, empty_message)
         return
 
     # Discover generation keys from first rep's first trait
-    first_trait = stats_with_data[0][stats_key].get("trait1", {})
+    first_trait = tables[0].get("trait1", {})
     gen_keys = sort_generation_keys(first_trait.keys())
     if not gen_keys:
         save_placeholder_plot(output_path, "No generations")
@@ -432,7 +434,7 @@ def _plot_incidence_by_sex_generation(
             key = f"trait{trait_num}"
             _plot_sex_curves(
                 ax,
-                [s[stats_key].get(key, {}).get(gk, {}) for s in stats_with_data],
+                [table.get(key, {}).get(gk, {}) for table in tables],
                 value_field,
                 linewidth,
             )
@@ -450,16 +452,16 @@ def _plot_incidence_by_sex_generation(
 
 
 def plot_cumulative_incidence_by_sex(
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
 ) -> None:
     """Plot cumulative incidence curves split by sex, from pre-computed stats."""
     _plot_incidence_by_sex(
-        all_stats,
+        [s.sample.cumulative_incidence_by_sex for s in all_stats],
         output_path,
         scenario,
-        stats_key="cumulative_incidence_by_sex",
+        name="cumulative_incidence_by_sex",
         value_field="values",
         linewidth=1.2,
         ylabel="Cumulative Incidence",
@@ -468,16 +470,16 @@ def plot_cumulative_incidence_by_sex(
 
 
 def plot_cumulative_incidence_by_sex_generation(
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
 ) -> None:
     """Plot cumulative incidence by sex and generation, from pre-computed stats."""
     _plot_incidence_by_sex_generation(
-        all_stats,
+        [s.sample.cumulative_incidence_by_sex_generation for s in all_stats],
         output_path,
         scenario,
-        stats_key="cumulative_incidence_by_sex_generation",
+        name="cumulative_incidence_by_sex_generation",
         value_field="values",
         linewidth=1.2,
         ylabel="Cumulative Incidence",
@@ -486,10 +488,10 @@ def plot_cumulative_incidence_by_sex_generation(
 
 
 def plot_cumulative_incidence_aj(
-    all_stats: list[dict[str, Any]], censor_age: float, output_path: str | Path, scenario: str = ""
+    all_stats: list[ReportView], censor_age: float, output_path: str | Path, scenario: str = ""
 ) -> None:
     """Plot Aalen-Johansen trait + death CIFs, with empirical overlay."""
-    stats_with_data = [s for s in all_stats if s.get("cumulative_incidence_aj")]
+    stats_with_data = [s for s in all_stats if s.sample.cumulative_incidence_aj]
     if not stats_with_data:
         logger.warning("Skipping cumulative_incidence_aj: no data in stats")
         save_placeholder_plot(output_path, "No Aalen-Johansen data (re-run stats)")
@@ -499,9 +501,9 @@ def plot_cumulative_incidence_aj(
 
     for trait_num, ax in zip([1, 2], axes, strict=True):
         key = f"trait{trait_num}"
-        ages = np.array(stats_with_data[0]["cumulative_incidence_aj"][key]["ages"])
-        aj_disease = np.array([s["cumulative_incidence_aj"][key]["aj_values"] for s in stats_with_data])
-        aj_death = np.array([s["cumulative_incidence_aj"][key]["aj_death_values"] for s in stats_with_data])
+        ages = np.array(stats_with_data[0].sample.cumulative_incidence_aj[key]["ages"])
+        aj_disease = np.array([s.sample.cumulative_incidence_aj[key]["aj_values"] for s in stats_with_data])
+        aj_death = np.array([s.sample.cumulative_incidence_aj[key]["aj_death_values"] for s in stats_with_data])
 
         mean_disease = aj_disease.mean(axis=0)
         mean_death = aj_death.mean(axis=0)
@@ -510,11 +512,11 @@ def plot_cumulative_incidence_aj(
         if len(stats_with_data) > 1:
             ax.fill_between(ages, aj_disease.min(axis=0), aj_disease.max(axis=0), alpha=0.18, color=COLOR_AFFECTED)
 
-        emp_stats = [s for s in stats_with_data if s.get("cumulative_incidence")]
+        emp_stats = [s for s in stats_with_data if s.sample.cumulative_incidence]
         if emp_stats:
-            emp_ages = np.array(emp_stats[0]["cumulative_incidence"][key]["ages"])
-            emp = np.array([s["cumulative_incidence"][key]["observed_values"] for s in emp_stats])
-            true_cif = np.array([s["cumulative_incidence"][key]["true_values"] for s in emp_stats])
+            emp_ages = np.array(emp_stats[0].sample.cumulative_incidence[key]["ages"])
+            emp = np.array([s.sample.cumulative_incidence[key]["observed_values"] for s in emp_stats])
+            true_cif = np.array([s.sample.cumulative_incidence[key]["true_values"] for s in emp_stats])
             ax.plot(
                 emp_ages, emp.mean(axis=0), color=COLOR_OBSERVED, linewidth=3.0, alpha=0.85, label="Empirical", zorder=3
             )
@@ -556,16 +558,16 @@ def plot_cumulative_incidence_aj(
 
 
 def plot_cumulative_incidence_aj_by_sex(
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
 ) -> None:
     """Plot Aalen-Johansen trait CIF stratified by sex."""
     _plot_incidence_by_sex(
-        all_stats,
+        [s.sample.cumulative_incidence_aj_by_sex for s in all_stats],
         output_path,
         scenario,
-        stats_key="cumulative_incidence_aj_by_sex",
+        name="cumulative_incidence_aj_by_sex",
         value_field="aj_values",
         linewidth=1.4,
         ylabel="Cumulative Incidence (Aalen-Johansen)",
@@ -574,16 +576,16 @@ def plot_cumulative_incidence_aj_by_sex(
 
 
 def plot_cumulative_incidence_aj_by_sex_generation(
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
 ) -> None:
     """Plot Aalen-Johansen trait CIF stratified by sex and generation."""
     _plot_incidence_by_sex_generation(
-        all_stats,
+        [s.sample.cumulative_incidence_aj_by_sex_generation for s in all_stats],
         output_path,
         scenario,
-        stats_key="cumulative_incidence_aj_by_sex_generation",
+        name="cumulative_incidence_aj_by_sex_generation",
         value_field="aj_values",
         linewidth=1.4,
         ylabel="AJ Cumulative Incidence",
@@ -592,29 +594,25 @@ def plot_cumulative_incidence_aj_by_sex_generation(
 
 
 def plot_censoring_windows(
-    all_stats: list[dict[str, Any]],
+    all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
     gen_censoring: dict[int, list[float]] | None = None,
 ) -> None:
     """Plot per-generation censoring windows, mean +/- band across reps."""
-    # Check that all reps have censoring data
-    stats_with_censoring = [s for s in all_stats if s.get("censoring") is not None]
-    if not stats_with_censoring:
+    # The windows are computed only under per-generation censoring windows.
+    windows = [s.sample.censoring_windows for s in all_stats if s.sample.censoring_windows is not None]
+    if not windows:
         logger.warning("Skipping censoring_windows plot: no censoring data in stats")
         save_placeholder_plot(output_path, "No censoring data")
         return
 
-    ages = np.array(stats_with_censoring[0]["censoring"]["censoring_ages"])
+    ages = np.array(windows[0]["censoring_ages"])
 
     # Discover generation keys from the stats YAML (e.g. "gen0", "gen1", ...)
     # Only include generations that have phenotyped individuals in any replicate
-    all_gen_keys = sort_generation_keys(stats_with_censoring[0]["censoring"]["generations"].keys())
-    gen_keys = [
-        gk
-        for gk in all_gen_keys
-        if any(s["censoring"]["generations"].get(gk, {}).get("n", 0) > 0 for s in stats_with_censoring)
-    ]
+    all_gen_keys = sort_generation_keys(windows[0]["generations"].keys())
+    gen_keys = [gk for gk in all_gen_keys if any(w["generations"].get(gk, {}).get("n", 0) > 0 for w in windows)]
     if not gen_keys:
         save_placeholder_plot(output_path, "No phenotyped generations")
         return
@@ -643,11 +641,7 @@ def plot_censoring_windows(
 
     for col, (gen_key, label) in enumerate(zip(gen_keys, gen_labels, strict=True)):
         # Check if any rep has data for this generation
-        gen_data = [
-            s["censoring"]["generations"][gen_key]
-            for s in stats_with_censoring
-            if s["censoring"]["generations"].get(gen_key, {}).get("n", 0) > 0
-        ]
+        gen_data = [w["generations"][gen_key] for w in windows if w["generations"].get(gen_key, {}).get("n", 0) > 0]
         if not gen_data:
             logger.warning("plot_censoring_windows: generation '%s' has 0 individuals", gen_key)
             for row in range(len(traits)):
@@ -676,7 +670,7 @@ def plot_censoring_windows(
             ax.plot(ages, mean_obs, color=COLOR_OBSERVED, linewidth=1.2, label="Observed")
             ax.fill_between(ages, mean_obs, alpha=0.2, color=COLOR_OBSERVED)
 
-            if len(stats_with_censoring) > 1:
+            if len(windows) > 1:
                 ax.fill_between(
                     ages,
                     all_true.min(axis=0),
@@ -729,10 +723,10 @@ def plot_censoring_windows(
     finalize_plot(output_path, scenario=scenario)
 
 
-def plot_family_structure(all_stats: list[dict], output_path: str | Path, scenario: str = "") -> None:
+def plot_family_structure(all_stats: list[ReportView], output_path: str | Path, scenario: str = "") -> None:
     """Plot offspring and mate count distributions, averaged across replicates."""
-    # Collect family_size dicts from each replicate
-    fs_list = [s.get("family_size", {}) for s in all_stats if "family_size" in s]
+    # Collect family_size dicts from each replicate ({} without children)
+    fs_list = [s.sample.family_size for s in all_stats]
     if not fs_list:
         save_placeholder_plot(output_path, "Family Structure\nNo family_size data")
         return

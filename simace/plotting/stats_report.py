@@ -1,20 +1,29 @@
-"""Adapter from the curated v2 report (+ plot payload) to the flat plotting view.
+"""The plotting view of one rep: its v2 report (+ plot payload), parsed once into a :class:`ReportView`.
 
-The plot helpers consume a single flat dict of keys (``cumulative_incidence``,
-``censoring``, ``family_size``, ``tetrachoric``, ``per_generation``,
-``parameters``, …). This module rebuilds that view from the v2 ``report.yaml``
-scope-organized groups and the dense arrays in ``plot_payload.yaml``, so the
-plot code does not need to know about the v2 scientific grouping.
+The figures read a rep's stats as attributes of the same
+:class:`~simace.analysis.sample_stats.SampleStats` records Analyze wrote the
+report from (ADR 0008), so a stat cannot exist on one side only. A field is
+``None`` only where a correct run can omit it: the censoring tables without
+per-generation censoring windows, and a recorded-pedigree truth entry
+without C transmission. Without a plot payload the dense curve arrays are
+absent from their tables.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from simace.analysis.sample_stats import SampleStats
 from simace.simulation.params import SimulationParams
 
+if TYPE_CHECKING:
+    from simace.analysis.sample_stats import AnalysisPedigreeStats, AnalysisSampleStats, ScopeSize
+
 __all__ = [
+    "ReportView",
     "plotting_report_view",
     "plotting_report_views",
     "report_per_generation",
@@ -23,13 +32,46 @@ __all__ = [
 ]
 
 
-def report_per_generation(report: dict[str, Any] | None) -> dict[str, Any]:
+@dataclass(frozen=True)
+class ReportView:
+    """One rep's report, as the figures read it.
+
+    Attributes:
+        sample_size: The analysis sample's size.
+        pedigree_size: The analysis pedigree's size.
+        sample: ``observed.analysis_sample``, dense arrays merged back from the payload.
+        pedigree: ``observed.analysis_pedigree``.
+        observed_h2_estimators: ``estimators.heritability.observed_scale``.
+        per_generation: The recorded pedigree's realized moments by
+            generation, in the flat ``generation_N -> {A1_var, ...}`` shape
+            (:func:`report_per_generation`).
+        parameters: ``inputs.parameters``, as written.
+        sim: The parameters as the record the reference lines read.
+        truth_relationships: Per trait, the recorded-pedigree relationship
+            truth; empty without C transmission (ADR 0025).
+        truth_midparent_slope: Per trait, the recorded-pedigree midparent
+            slope truth; empty without C transmission.
+    """
+
+    sample_size: ScopeSize
+    pedigree_size: ScopeSize
+    sample: AnalysisSampleStats
+    pedigree: AnalysisPedigreeStats
+    observed_h2_estimators: dict[str, Any]
+    per_generation: dict[str, dict[str, Any]]
+    parameters: dict[str, Any]
+    sim: SimulationParams
+    truth_relationships: dict[str, Any]
+    truth_midparent_slope: dict[str, Any]
+
+
+def report_per_generation(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """Reconstruct the flat ``generation_N -> {A1_var, C1_var, …}`` table from truth.
 
     Inverse of the per-trait ``truth.recorded_pedigree.traits.*.realized_by_generation``
     layout, matching what the per-generation heritability plots expect.
     """
-    traits = (((report or {}).get("truth") or {}).get("recorded_pedigree") or {}).get("traits", {})
+    traits = report["truth"]["recorded_pedigree"]["traits"]
     out: dict[str, Any] = {}
     for t in (1, 2):
         realized_by_generation = (traits.get(f"trait{t}") or {}).get("realized_by_generation", {})
@@ -47,55 +89,34 @@ def report_per_generation(report: dict[str, Any] | None) -> dict[str, Any]:
     return out
 
 
-def plotting_report_view(report: dict[str, Any], plot_payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Build the flat plotting view from a v2 report and its plot payload.
+def plotting_report_view(report: dict[str, Any], plot_payload: dict[str, Any] | None = None) -> ReportView:
+    """Parse a v2 report and its plot payload into the plotting view.
 
     ``plot_payload`` may be omitted when only scalar fields are needed (e.g.
     ad-hoc cross-scenario tools); curve arrays will then be absent.
     """
     stats = SampleStats.from_report(report, plot_payload)
-    sample = stats.analysis_sample
-    pedigree = stats.analysis_pedigree
-
-    view: dict[str, Any] = {
-        "n_individuals": stats.sample_size.n_individuals,
-        "n_generations": stats.sample_size.n_generations,
-    }
-    view |= {key: value for key, value in sample.to_report().items() if not key.startswith("censoring_")}
-    # The plot helpers want the windows curve under the bare key "censoring".
-    if sample.censoring_windows is not None:
-        view["censoring"] = sample.censoring_windows
-    if sample.censoring_confusion is not None:
-        view["censoring_confusion"] = sample.censoring_confusion
-    if sample.censoring_cascade is not None:
-        view["censoring_cascade"] = sample.censoring_cascade
-    view["pair_counts"] = sample.relationship_pair_counts
-
-    view["parent_status"] = pedigree.parent_status
-    view["mate_correlation"] = pedigree.mate_correlation
-    view["pair_counts_ped"] = pedigree.relationship_pair_counts
-    view["n_individuals_ped"] = stats.pedigree_size.n_individuals
-    view["n_generations_ped"] = stats.pedigree_size.n_generations
-
-    view["observed_h2_estimators"] = stats.observed_h2_estimators
-    view["per_generation"] = report_per_generation(report)
-    view["parameters"] = (report.get("inputs") or {}).get("parameters", {})
-    # The parameters as the record the reference lines read; None for a report without them.
-    view["sim"] = SimulationParams.from_mapping(view["parameters"]) if view["parameters"] else None
-    # Recorded-pedigree truth, present only under C transmission (ADR 0025).
-    traits = ((report.get("truth") or {}).get("recorded_pedigree") or {}).get("traits", {})
-    view["truth_relationships"] = {name: tr["relationships"] for name, tr in traits.items() if "relationships" in tr}
-    view["truth_midparent_slope"] = {
-        name: tr["midparent_slope"] for name, tr in traits.items() if "midparent_slope" in tr
-    }
-    return view
+    parameters = report["inputs"]["parameters"]
+    traits = report["truth"]["recorded_pedigree"]["traits"]
+    return ReportView(
+        sample_size=stats.sample_size,
+        pedigree_size=stats.pedigree_size,
+        sample=stats.analysis_sample,
+        pedigree=stats.analysis_pedigree,
+        observed_h2_estimators=stats.observed_h2_estimators,
+        per_generation=report_per_generation(report),
+        parameters=parameters,
+        sim=SimulationParams.from_mapping(parameters),
+        truth_relationships={name: tr["relationships"] for name, tr in traits.items() if "relationships" in tr},
+        truth_midparent_slope={name: tr["midparent_slope"] for name, tr in traits.items() if "midparent_slope" in tr},
+    )
 
 
 def plotting_report_views(
     reports: list[dict[str, Any]],
     plot_payloads: list[dict[str, Any] | None] | None = None,
-) -> list[dict[str, Any]]:
-    """Build plotting views for a list of v2 reports and their plot payloads."""
+) -> list[ReportView]:
+    """Parse a list of v2 reports and their plot payloads into plotting views."""
     if plot_payloads is None:
         plot_payloads = [None] * len(reports)
     return [plotting_report_view(r, pl) for r, pl in zip(reports, plot_payloads, strict=True)]

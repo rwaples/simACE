@@ -7,6 +7,7 @@ import pytest
 
 from simace.plotting.atlas_manifest import PlotEntry, SectionBreak
 from simace.plotting.plot_atlas_html import assemble_html_atlas
+from tests.conftest import report_view
 
 
 def _touch_plot(plot_dir, basename: str, ext: str = "png"):
@@ -207,7 +208,7 @@ def test_native_table1_renders_when_inputs_exist(tmp_path):
         plot_dir,
         output,
         scenario_params={"scenario": "small_test", "censor_age": 80},
-        stats_data=[{"n_individuals": 1, "n_generations": 1}],
+        stats_data=[report_view(sample_size=(1, 1))],
     )
 
     html = output.read_text(encoding="utf-8")
