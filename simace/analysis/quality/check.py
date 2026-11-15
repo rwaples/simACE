@@ -9,7 +9,7 @@ pedigree, as a family-specific measurements record. The report's
 
 from __future__ import annotations
 
-__all__ = ["CheckValue", "FamilyResult", "QualityCheck", "check_rows"]
+__all__ = ["CheckValue", "FamilyResult", "MateTerms", "PairCorrelation", "QualityCheck", "check_rows"]
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -19,6 +19,38 @@ if TYPE_CHECKING:
 
 #: An observed, expected or tolerance value: a scalar, or one per parent / generation.
 type CheckValue = int | float | list[int] | list[float] | None
+
+
+@dataclass(frozen=True)
+class MateTerms:
+    """The data-anchored mate correlations an AM-aware expectation reads (:mod:`.am_relatedness`).
+
+    Attributes:
+        mu_A: The genetic mate correlation ``Corr(A_mother, A_father)``.
+        r_ho: The liability mate correlation.
+        mate_pairs: The mating pairs both are pooled over.
+    """
+
+    mu_A: float
+    r_ho: float
+    mate_pairs: int
+
+
+@dataclass(frozen=True)
+class PairCorrelation:
+    """A correlation between relatives that a family measures, over every pair of one kind.
+
+    Attributes:
+        observed: The Pearson correlation; NaN where a side has no variance.
+        n_pairs: The pairs it is over.
+        expected: Its expectation, where a closed form applies.
+        mate_terms: The mate correlations the expectation reads, under single-trait AM.
+    """
+
+    observed: float
+    n_pairs: int
+    expected: float | None = None
+    mate_terms: MateTerms | None = None
 
 
 @dataclass(frozen=True)

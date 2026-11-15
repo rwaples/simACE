@@ -1,8 +1,8 @@
-"""Shared helpers for the validation subdomain modules.
+"""Shared helpers for the quality-check families.
 
-Cross-cutting result envelope, correlation-tolerance, sibling-moment and
-mate-correlation helpers used by more than one validation module. Generic
-numerics live in :mod:`simace.core.numerics`.
+Correlation-tolerance, sibling-moment and mate-correlation helpers used by
+more than one family. The result records live in :mod:`.check`; generic
+numerics in :mod:`simace.core.numerics`.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ import logging
 import math
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 from pedigree_graph import PedigreeGraph
@@ -31,28 +31,6 @@ logger = logging.getLogger(__name__)
 
 _MIN_PAIRS_FOR_CORR = 10  # below this, skip the correlation check
 SIBLING_CATEGORIES = ("FS", "MHS", "PHS")
-
-
-def _result(passed: bool, details: str, **extra: Any) -> dict[str, Any]:
-    """Build a standardized validation result dict."""
-    d: dict[str, Any] = {"passed": passed, "details": details}
-    d.update(extra)
-    return d
-
-
-def _info(details: str, **extra: Any) -> dict[str, Any]:
-    """Build an informational (non-scored) validation result dict.
-
-    Unlike :func:`_result`, ``_info`` carries no ``passed`` key and stamps
-    ``informational=True``. These are metrics with no closed-form expected
-    value to assert against (e.g. observed liability correlations, regression
-    slopes), so there is no meaningful pass/fail.
-    ``report.normalize_quality_checks`` skips any result flagged informational
-    (or lacking ``passed``), so they are reported for the record but never
-    counted toward the pass/fail tally — the explicit marker makes that intent
-    legible instead of leaving it inferred from an absent key.
-    """
-    return {"informational": True, "details": details, **extra}
 
 
 def _corr_se(expected_r: float, n_pairs: int) -> float:

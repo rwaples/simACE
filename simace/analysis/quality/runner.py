@@ -31,8 +31,12 @@ if TYPE_CHECKING:
 
     from simace.simulation.params import SimulationParams
 
+    from .am_equilibrium import AMEquilibriumMeasurements
+    from .assortative_mating import AssortativeMatingMeasurements
     from .check import FamilyResult
     from .consanguinity import ConsanguinityMeasurements
+    from .half_sibs import HalfSibMeasurements
+    from .heritability import HeritabilityMeasurements
     from .population import PopulationMeasurements
     from .statistical import StatisticalMeasurements
     from .structural import StructuralMeasurements
@@ -54,35 +58,6 @@ FAMILIES = (
     "consanguineous_matings",
 )
 
-#: Families that still return a ``{check name: result dict}`` mapping (#89 converts them next).
-_LEGACY = ("half_sibs", "c_transmission", "heritability", "assortative_mating", "am_equilibrium")
-
-
-def _single(result: dict[str, Any], prefix: str) -> Any:
-    """The value of the one key starting with ``prefix`` (or None); raises if there are two."""
-    hits = [value for key, value in result.items() if key.startswith(prefix)]
-    if len(hits) > 1:
-        matched = sorted(k for k in result if k.startswith(prefix))
-        raise ValueError(f"Ambiguous {prefix!r} fields in check result: {matched}")
-    return hits[0] if hits else None
-
-
-def _legacy_rows(family: str, results: dict[str, Any]) -> list[dict[str, Any]]:
-    return [
-        {
-            "id": f"{family}.{name}",
-            "scope": "recorded_pedigree",
-            "severity": "error",
-            "status": "pass" if result["passed"] else "fail",
-            "observed": _single(result, "observed"),
-            "expected": _single(result, "expected"),
-            "tolerance": result.get("tolerance"),
-            "message": result.get("details"),
-        }
-        for name, result in results.items()
-        if "passed" in result
-    ]
-
 
 @dataclass(frozen=True)
 class QualityReport:
@@ -91,20 +66,28 @@ class QualityReport:
     Attributes:
         structural: Pedigree structural integrity.
         twins: MZ twins.
+        half_sibs: Half-sib structure and correlations.
         statistical: Founder variances and cross-trait correlations.
+        c_transmission: The C transmission coefficients (ADR 0025).
+        heritability: MZ/DZ correlations, Falconer, parent-offspring.
         population: Generation sizes.
+        assortative_mating: Mate correlations.
+        am_equilibrium: The AM additive-variance equilibrium.
         consanguineous_matings: Consanguineous matings and grandparent links.
-        legacy: The families not yet typed, by name.
         per_generation: Per-generation liability and component moments, by ``generation_{g}``.
         family_size_distribution: Offspring counts per mother and per father.
     """
 
     structural: FamilyResult[StructuralMeasurements]
     twins: FamilyResult[TwinMeasurements]
+    half_sibs: FamilyResult[HalfSibMeasurements]
     statistical: FamilyResult[StatisticalMeasurements]
+    c_transmission: FamilyResult[None]
+    heritability: FamilyResult[HeritabilityMeasurements]
     population: FamilyResult[PopulationMeasurements]
+    assortative_mating: FamilyResult[AssortativeMatingMeasurements]
+    am_equilibrium: FamilyResult[AMEquilibriumMeasurements]
     consanguineous_matings: FamilyResult[ConsanguinityMeasurements]
-    legacy: dict[str, dict[str, Any]]
     per_generation: dict[str, dict[str, Any]]
     family_size_distribution: dict[str, Any]
 
@@ -112,11 +95,8 @@ class QualityReport:
         """The ``quality_checks.checks`` rows, family by family in ``FAMILIES`` order."""
         rows: list[dict[str, Any]] = []
         for family in FAMILIES:
-            if family in _LEGACY:
-                rows += _legacy_rows(family, self.legacy[family])
-            else:
-                result: FamilyResult[Any] = getattr(self, family)
-                rows += check_rows(family, result.checks)
+            result: FamilyResult[Any] = getattr(self, family)
+            rows += check_rows(family, result.checks)
         return rows
 
 
@@ -142,16 +122,14 @@ def build_quality_report(
     report = QualityReport(
         structural=validate_structural(df, sim, ped),
         twins=validate_twins(df, sim, ped),
+        half_sibs=validate_half_sibs(df, sim, siblings, mates),
         statistical=validate_statistical(df, sim),
+        c_transmission=validate_c_transmission(df, sim.c_transmission, ped),
+        heritability=validate_heritability(df, sim, ped, pedigree, siblings, mates),
         population=validate_population(df, sim),
+        assortative_mating=validate_assortative_mating(sim, mates),
+        am_equilibrium=validate_am_equilibrium(df, sim),
         consanguineous_matings=validate_consanguineous_matings(df, ped),
-        legacy={
-            "half_sibs": validate_half_sibs(df, sim, siblings, mates),
-            "c_transmission": validate_c_transmission(df, sim.c_transmission, ped),
-            "heritability": validate_heritability(df, sim, ped, pedigree, siblings, mates),
-            "assortative_mating": validate_assortative_mating(sim, mates),
-            "am_equilibrium": validate_am_equilibrium(df, sim),
-        },
         per_generation=compute_per_generation_stats(df, sim),
         family_size_distribution=compute_family_size_distribution(df),
     )

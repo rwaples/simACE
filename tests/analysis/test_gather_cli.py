@@ -6,8 +6,12 @@ import logging
 import pytest
 import yaml
 
-from simace.analysis.quality import FamilyResult, QualityCheck, QualityReport
+from simace.analysis.quality import FamilyResult, PairCorrelation, QualityCheck, QualityReport
+from simace.analysis.quality.am_equilibrium import AMEquilibriumMeasurements
+from simace.analysis.quality.assortative_mating import AssortativeMatingMeasurements, MateCorrelation
 from simace.analysis.quality.consanguinity import ConsanguinityMeasurements
+from simace.analysis.quality.half_sibs import HalfSibMeasurements, HalfSibTrait
+from simace.analysis.quality.heritability import HeritabilityMeasurements, HeritabilityTrait, MidparentRegression
 from simace.analysis.quality.population import PopulationMeasurements
 from simace.analysis.quality.statistical import FounderVariances, StatisticalMeasurements
 from simace.analysis.quality.structural import StructuralMeasurements
@@ -99,6 +103,19 @@ _MINIMAL_PARAMS = {
     "seed": 42,
 }
 
+_HALF_SIB_TRAIT = HalfSibTrait(
+    A_corr=PairCorrelation(0.25, 100), liability_corr=PairCorrelation(0.25, 100), shared_C=PairCorrelation(0.0, 100)
+)
+_HERITABILITY_TRAIT = HeritabilityTrait(
+    mz_A_corr=PairCorrelation(0.99, 20),
+    mz_liability_corr=PairCorrelation(0.70, 20),
+    dz_A_corr=PairCorrelation(0.49, 300),
+    dz_liability_corr=PairCorrelation(0.50, 300),
+    falconer=0.50,
+    po_A=MidparentRegression(slope=0.50, intercept=0.0, r_squared=0.50),
+    po_liability=MidparentRegression(slope=0.50, intercept=0.0, r_squared=0.50),
+)
+
 # A quality report with every measurement extract_metrics reads.
 _MINIMAL_QUALITY = QualityReport(
     structural=FamilyResult(StructuralMeasurements(sex_ratio_male=0.5), ()),
@@ -117,40 +134,26 @@ _MINIMAL_QUALITY = QualityReport(
         ConsanguinityMeasurements(n_half_sib_matings=0, n_full_sib_matings=0, total_missing_gp_links=0),
         (QualityCheck("grandparent_reconciliation", True, "reconciled"),),
     ),
-    legacy={
-        "heritability": {
-            "mz_twin_A1_correlation": {"observed": 0.99},
-            "mz_twin_liability1_correlation": {"observed": 0.70},
-            "mz_twin_A2_correlation": {"observed": 0.99},
-            "mz_twin_liability2_correlation": {"observed": 0.70},
-            "dz_sibling_A1_correlation": {"observed": 0.49},
-            "dz_sibling_liability1_correlation": {"observed": 0.50},
-            "dz_sibling_A2_correlation": {"observed": 0.49},
-            "dz_sibling_liability2_correlation": {"observed": 0.50},
-            "falconer_estimate_trait1": {"observed": 0.50},
-            "falconer_estimate_trait2": {"observed": 0.50},
-            "parent_offspring_A1_regression": {"slope": 0.50, "r_squared": 0.50},
-            "parent_offspring_liability1_regression": {"slope": 0.50, "r_squared": 0.50},
-            "parent_offspring_A2_regression": {"slope": 0.50, "r_squared": 0.50},
-            "parent_offspring_liability2_regression": {"slope": 0.50, "r_squared": 0.50},
-        },
-        "half_sibs": {
-            "half_sib_pair_proportion": {"observed": 0.11},
-            "offspring_with_half_sib": {"observed": 0.14},
-            "half_sib_A1_correlation": {"observed": 0.25},
-            "half_sib_liability1_correlation": {"observed": 0.25},
-            "half_sib_shared_C1": {"observed": 0.0},
-            "half_sib_A2_correlation": {"observed": 0.25},
-            "half_sib_liability2_correlation": {"observed": 0.25},
-            "half_sib_shared_C2": {"observed": 0.0},
-        },
-        "assortative_mating": {
-            "mate_corr_liability1": {"observed": 0.01},
-            "mate_corr_liability2": {"observed": -0.01},
-        },
-        "c_transmission": {},
-        "am_equilibrium": {},
-    },
+    half_sibs=FamilyResult(
+        HalfSibMeasurements(
+            pair_proportion=0.11,
+            offspring_with_half_sib=0.14,
+            traits=(_HALF_SIB_TRAIT, _HALF_SIB_TRAIT),
+        ),
+        (),
+    ),
+    c_transmission=FamilyResult(None, ()),
+    heritability=FamilyResult(HeritabilityMeasurements(traits=(_HERITABILITY_TRAIT, _HERITABILITY_TRAIT)), ()),
+    assortative_mating=FamilyResult(
+        AssortativeMatingMeasurements(
+            n_pairs=500,
+            liability=(MateCorrelation(0.01, None), MateCorrelation(-0.01, None)),
+            cross=None,
+            genetic=(0.0, 0.0),
+        ),
+        (),
+    ),
+    am_equilibrium=FamilyResult(AMEquilibriumMeasurements(final_var_A=(None, None)), ()),
     per_generation={},
     family_size_distribution={"mother": {"mean": 2.3}, "father": {"mean": 2.3}},
 )

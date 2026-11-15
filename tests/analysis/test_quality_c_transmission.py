@@ -75,8 +75,9 @@ def test_transmission_check_passes_on_random_and_assortative_mating(rm_pedigree,
     for ped, params in ((rm_pedigree, _params(**_CT)), (am_pedigree, _params(assort1=0.3, **_CT))):
         result = validate_c_transmission(ped, sim_params(params).c_transmission, PedigreeArrays.from_frame(ped))
         for t in (1, 2):
-            assert result[f"c{t}_transmission"]["passed"], result[f"c{t}_transmission"]["details"]
-            assert result[f"c{t}_transmission"]["expected"] == [_CT[f"Ctm_maternal{t}"], _CT[f"Ctm_paternal{t}"]]
+            check = result.check(f"c{t}_transmission")
+            assert check.passed, check.message
+            assert check.expected == [_CT[f"Ctm_maternal{t}"], _CT[f"Ctm_paternal{t}"]]
 
 
 def test_transmission_check_fails_on_the_wrong_coefficients(rm_pedigree):
@@ -84,23 +85,23 @@ def test_transmission_check_fails_on_the_wrong_coefficients(rm_pedigree):
     result = validate_c_transmission(
         rm_pedigree, sim_params(wrong).c_transmission, PedigreeArrays.from_frame(rm_pedigree)
     )
-    assert not result["c1_transmission"]["passed"]
+    assert not result.check("c1_transmission").passed
 
 
-def test_transmission_check_is_informational_when_off_or_underpowered(rm_pedigree):
+def test_transmission_is_not_checked_when_off_or_underpowered(rm_pedigree):
     ped = PedigreeArrays.from_frame(rm_pedigree)
     off = validate_c_transmission(rm_pedigree, sim_params(_params()).c_transmission, ped)
-    assert all(r.get("informational") for r in off.values())
+    assert off.checks == ()
     no_c = run_simulation(seed=1, **{**_SIM, "N": 300, "C1": 0.0}, Ctm_maternal1=0.5).pedigree
     small = validate_c_transmission(
         no_c, sim_params(_params(C1=0.0, Ctm_maternal1=0.5)).c_transmission, PedigreeArrays.from_frame(no_c)
     )
-    assert "no variance" in small["c1_transmission"]["details"]
+    assert small.find("c1_transmission") is None  # parental C1 has no variance
     tiny = run_simulation(seed=1, **{**_SIM, "N": 60}, Ctm_maternal1=0.5).pedigree
     few = validate_c_transmission(
         tiny, sim_params(_params(Ctm_maternal1=0.5)).c_transmission, PedigreeArrays.from_frame(tiny)
     )
-    assert "households <" in few["c1_transmission"]["details"]
+    assert few.find("c1_transmission") is None  # too few households
 
 
 def test_exact_copying_is_judged_on_the_numerical_floor():
@@ -109,7 +110,7 @@ def test_exact_copying_is_judged_on_the_numerical_floor():
     result = validate_c_transmission(
         ped, sim_params(_params(rC=0.0, Ctm_maternal1=1.0)).c_transmission, PedigreeArrays.from_frame(ped)
     )
-    assert result["c1_transmission"]["passed"], result["c1_transmission"]["details"]
+    assert result.check("c1_transmission").passed, result.check("c1_transmission").message
 
 
 def test_c_sharing_groups_by_mating_pair_under_paternal_transmission(rm_pedigree):
@@ -159,22 +160,23 @@ def test_phs_shared_c_reports_bf_squared_under_the_gate(rm_pedigree, am_pedigree
         sibling_moments(rm_pedigree, PedigreeArrays.from_frame(rm_pedigree)),
         mate_correlations(rm_pedigree, mate_pedigree(rm_pedigree)),
     )
-    assert result["half_sib_shared_C1"]["expected"] == pytest.approx(0.09)
-    assert result["half_sib_shared_C1"].get("informational")
-    assert result["half_sib_shared_C1"]["observed"] == pytest.approx(0.09, abs=0.05)
+    shared = result.measurements.traits[0].shared_C
+    assert shared.expected == pytest.approx(0.09)
+    assert result.checks == ()
+    assert shared.observed == pytest.approx(0.09, abs=0.05)
     am = validate_half_sibs(
         am_pedigree,
         sim_params(_params(assort1=0.3, **_CT)),
         sibling_moments(am_pedigree, PedigreeArrays.from_frame(am_pedigree)),
         mate_correlations(am_pedigree, mate_pedigree(am_pedigree)),
     )
-    assert am["half_sib_shared_C1"].get("informational")
+    assert am.measurements.traits[0].shared_C.expected is None
 
 
-def test_am_equilibrium_is_informational_under_transmission(am_pedigree):
+def test_am_equilibrium_is_measured_not_checked_under_transmission(am_pedigree):
     result = validate_am_equilibrium(am_pedigree, sim_params(_params(assort1=0.3, **_CT)))
-    assert result["am_equilibrium_A1"].get("informational")
-    assert "observed" in result["am_equilibrium_A1"]
+    assert result.find("am_equilibrium_A1") is None
+    assert result.measurements.final_var_A[0] is not None
 
 
 def test_sibling_e_independence_uses_an_se_based_tolerance():

@@ -9,13 +9,14 @@ cluster-robust (CR1) over maternal households.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from simace.core.numerics import ZERO_VAR_THRESHOLD
 
-from ._common import _info, _result, cluster_codes
+from ._common import cluster_codes
+from .check import FamilyResult, QualityCheck
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -53,12 +54,14 @@ def cluster_robust_ols(y: np.ndarray, X: np.ndarray, cluster: np.ndarray) -> tup
     return beta, np.sqrt(np.diag(cov))
 
 
-def validate_c_transmission(df: pd.DataFrame | pl.DataFrame, ctm: CTransmission, ped: PedigreeArrays) -> dict[str, Any]:
+def validate_c_transmission(
+    df: pd.DataFrame | pl.DataFrame, ctm: CTransmission, ped: PedigreeArrays
+) -> FamilyResult[None]:
     """Check that offspring C regresses on parental C with the configured ``(b_m, b_f)``, per trait.
 
-    Informational (not scored) when the trait has no C transmission, when a
-    parent's C has no variance, or when fewer than :data:`MIN_HOUSEHOLDS`
-    mothers have recorded children.
+    A trait is not checked when it has no C transmission, when a parent's C
+    has no variance, or when fewer than :data:`MIN_HOUSEHOLDS` mothers have
+    recorded children. The family measures nothing beyond its checks.
     """
     mother = df["mother"].to_numpy()
     father = df["father"].to_numpy()
@@ -66,36 +69,32 @@ def validate_c_transmission(df: pd.DataFrame | pl.DataFrame, ctm: CTransmission,
     household = cluster_codes(mother[kids])
     n_households = int(household.max()) + 1 if len(kids) else 0
 
-    results: dict[str, Any] = {}
+    checks = []
     for t in (1, 2):
         name = f"c{t}_transmission"
         b_m, b_f = ctm.coefficients(t)
-        if b_m == b_f == 0.0:
-            results[name] = _info(f"No C{t} transmission configured")
-            continue
-        if n_households < MIN_HOUSEHOLDS:
-            results[name] = _info(f"C{t} transmission not checked: {n_households} households < {MIN_HOUSEHOLDS}")
+        if b_m == b_f == 0.0 or n_households < MIN_HOUSEHOLDS:
             continue
         child = df[f"C{t}"].to_numpy()[kids].astype(np.float64)
         mom = ped.gather(f"C{t}", mother[kids]).astype(np.float64)
         dad = ped.gather(f"C{t}", father[kids]).astype(np.float64)
         if min(np.var(mom), np.var(dad)) < ZERO_VAR_THRESHOLD:
-            results[name] = _info(f"C{t} transmission not checked: parental C{t} has no variance")
             continue
         X = np.column_stack([np.ones_like(child), mom, dad])
         beta, se = cluster_robust_ols(child, X, household)
         expected = (b_m, b_f)
         tolerance = [max(SE_MULTIPLIER * s, TOLERANCE_FLOOR) for s in se[1:]]
         passed = all(abs(beta[j + 1] - expected[j]) <= tolerance[j] for j in range(2))
-        results[name] = _result(
-            passed,
-            f"C{t} on (mother, father) C: b_m {beta[1]:.4f} (expected {b_m}, tol {tolerance[0]:.2g}), "
-            f"b_f {beta[2]:.4f} (expected {b_f}, tol {tolerance[1]:.2g}); "
-            f"cluster-robust over {n_households} households",
-            observed=[float(beta[1]), float(beta[2])],
-            expected=[b_m, b_f],
-            tolerance=tolerance,
-            n_offspring=len(kids),
-            n_households=n_households,
+        checks.append(
+            QualityCheck(
+                name,
+                passed,
+                f"C{t} on (mother, father) C: b_m {beta[1]:.4f} (expected {b_m}, tol {tolerance[0]:.2g}), "
+                f"b_f {beta[2]:.4f} (expected {b_f}, tol {tolerance[1]:.2g}); "
+                f"cluster-robust over {n_households} households",
+                observed=[float(beta[1]), float(beta[2])],
+                expected=[b_m, b_f],
+                tolerance=tolerance,
+            )
         )
-    return results
+    return FamilyResult(None, tuple(checks))

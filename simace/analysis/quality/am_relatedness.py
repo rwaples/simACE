@@ -31,11 +31,12 @@ so callers can skip rather than assert a single-trait formula.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from ._common import _MIN_PAIRS_FOR_CORR
+from .check import MateTerms
 
 if TYPE_CHECKING:
     from simace.simulation.params import Assortment
@@ -106,21 +107,20 @@ def resolve_expected_a_corr(
     t: int,
     kind: str,
     default: float,
-) -> tuple[float | None, str | None, dict[str, Any]]:
+) -> tuple[float | None, MateTerms | None]:
     """Resolve the expected A-correlation for trait ``t``, AM-aware.
 
-    Returns ``(expected, skip_reason, info)``:
+    Returns ``(expected, mate_terms)``:
 
-    * no AM → ``(default, None, {})`` (random-mating ``2·kinship`` unchanged);
-    * single-trait AM → ``(am_expected, None, {mu_A, r_ho, mate_pairs})``;
-    * bivariate AM → ``(None, reason, {})`` so the caller can skip the scored
-      check (cross-trait paths are not modelled by the single-trait formula).
+    * no AM → ``(default, None)`` (random-mating ``2·kinship`` unchanged);
+    * single-trait AM → ``(am_expected, MateTerms(mu_A, r_ho, mate_pairs))``;
+    * bivariate AM → ``(None, None)``: cross-trait paths are not modelled by
+      the single-trait formula, so there is no expectation.
     """
     mode = am_relatedness_mode(assortment, t)
     if mode == "none":
-        return default, None, {}
+        return default, None
     if mode == "bivariate":
-        return None, "both-trait AM active (cross-trait paths not in single-trait formula)", {}
+        return None, None
     mu_a, r_ho, n = observed_mate_correlations(mates, t)
-    expected = am_expected_a_correlation(kind, mu_a, r_ho)
-    return expected, None, {"mu_A": mu_a, "r_ho": r_ho, "mate_pairs": n}
+    return am_expected_a_correlation(kind, mu_a, r_ho), MateTerms(mu_A=mu_a, r_ho=r_ho, mate_pairs=n)

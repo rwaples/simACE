@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 from pedigree_graph import RELATIONSHIPS
@@ -10,14 +11,9 @@ from pedigree_graph import RELATIONSHIPS
 from simace.core.numerics import unique_sorted
 from simace.core.relationships import analytic_applies, shared_environment_coefficient
 
-from ._common import (
-    _MIN_PAIRS_FOR_CORR,
-    SIBLING_CATEGORIES,
-    _info,
-    category_cell,
-    pair_correlation,
-)
+from ._common import _MIN_PAIRS_FOR_CORR, SIBLING_CATEGORIES, category_cell, pair_correlation
 from .am_relatedness import resolve_expected_a_corr
+from .check import FamilyResult, PairCorrelation
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -73,13 +69,42 @@ def household_sibling_counts(df: pd.DataFrame | pl.DataFrame) -> dict[str, int]:
     }
 
 
-def _validate_half_sib_correlations(
-    mates: MateCorrelations,
-    sibling_moments: RelationshipMoments,
-    sim: SimulationParams,
-    results: dict[str, Any],
-) -> None:
-    """Report half-sib correlations for A, liability, and shared C, with their expectations.
+@dataclass(frozen=True)
+class HalfSibTrait:
+    """One trait's half-sib correlations; each is ``None`` with fewer than ten pairs to correlate.
+
+    Attributes:
+        A_corr: The A correlation over pooled maternal and paternal half-sibs.
+        liability_corr: The liability correlation over paternal half-sibs.
+        shared_C: The C correlation over paternal half-sibs.
+    """
+
+    A_corr: PairCorrelation | None
+    liability_corr: PairCorrelation | None
+    shared_C: PairCorrelation | None
+
+
+@dataclass(frozen=True)
+class HalfSibMeasurements:
+    """What the half-sib family measures.
+
+    Attributes:
+        pair_proportion: The maternal half-sib share of maternal sibling
+            pairs; ``None`` with no maternal sibling pairs.
+        offspring_with_half_sib: The share of offspring with maternal sibs
+            who have a maternal half-sib; ``None`` with no such offspring.
+        traits: Each trait's correlations, ``traits[t - 1]``.
+    """
+
+    pair_proportion: float | None
+    offspring_with_half_sib: float | None
+    traits: tuple[HalfSibTrait, HalfSibTrait]
+
+
+def _half_sib_trait(
+    mates: MateCorrelations, sibling_moments: RelationshipMoments, sim: SimulationParams, t: int
+) -> HalfSibTrait:
+    """Measure trait ``t``'s half-sib correlations for A, liability, and shared C, with their expectations.
 
     None is asserted: `simace validate`'s ``mendelian_residual`` and
     ``household_draw`` test the inheritance (ADR 0029).
@@ -93,9 +118,8 @@ def _validate_half_sib_correlations(
     - **Liability and shared-C correlations** use PHS only. Maternal
       half-sibs share households, so MHS liability corr = 0.25·A + 1·C and
       MHS shared_C ≠ 0; PHS gives the clean expected formulas (0.25·A and 0).
-      Under paternal C transmission PHS share ``b_f²`` of C, so the
-      expectations become ``(0.25·A + b_f²·C)/V_P`` and ``b_f²`` where the
-      closed form holds (ADR 0025).
+      Under paternal C transmission PHS share ``b_f²`` of C, so the shared-C
+      expectation becomes ``b_f²`` where the closed form holds (ADR 0025).
 
     Every correlation is exact over all pairs (ADR 0022); ``n_pairs`` is the
     true pair count.
@@ -105,80 +129,31 @@ def _validate_half_sib_correlations(
     n_pooled = int(pooled.counts)
     n_phs = int(phs.counts)
 
+    a_corr = None
     if n_pooled >= _MIN_PAIRS_FOR_CORR:
-        for t in [1, 2]:
-            col = f"A{t}"
-            obs = pair_correlation(pooled, col)
-            # Half-sib A correlation: 2*kinship under random mating, AM-inflated
-            # to (1 + 2*mu_A + mu_A*r_ho)/4 under single-trait assortment.
-            expected_a, skip, info = resolve_expected_a_corr(
-                mates, sim.assortment, t, "HS", 2.0 * RELATIONSHIPS["MHS"].nominal_kinship
-            )
-            if expected_a is None:
-                # Reported, not asserted: no single-trait formula under {skip}.
-                results[f"half_sib_{col}_correlation"] = _info(
-                    f"Half-sib (pooled MHS+PHS) {col} correlation: {obs:.4f} (not asserted — {skip})",
-                    observed=float(obs),
-                    n_pairs=n_pooled,
-                )
-                continue
-            # Reported, not asserted: `simace validate`'s mendelian_residual tests the inheritance (ADR 0029).
-            results[f"half_sib_{col}_correlation"] = _info(
-                f"Half-sib (pooled MHS+PHS) {col} correlation: {obs:.4f} (expected: {expected_a:.4f})",
-                expected=float(expected_a),
-                observed=float(obs),
-                n_pairs=n_pooled,
-                **info,
-            )
-    else:
-        for t in [1, 2]:
-            results[f"half_sib_A{t}_correlation"] = _info(
-                f"Not enough pooled half-sib pairs ({n_pooled}) for A{t} correlation"
-            )
+        expected_a, mate_terms = resolve_expected_a_corr(
+            mates, sim.assortment, t, "HS", 2.0 * RELATIONSHIPS["MHS"].nominal_kinship
+        )
+        a_corr = PairCorrelation(
+            observed=float(pair_correlation(pooled, f"A{t}")),
+            n_pairs=n_pooled,
+            expected=None if expected_a is None else float(expected_a),
+            mate_terms=mate_terms,
+        )
 
-    if n_phs >= _MIN_PAIRS_FOR_CORR:
-        for t in [1, 2]:
-            phs_pheno = pair_correlation(phs, f"P{t}")
-            coefficients = sim.c_transmission.coefficients(t)
-            phs_analytic = analytic_applies("PHS", sim.assortment, sim.c_transmission, sim.vc, t)
-            b_f = coefficients[1]
-            if b_f == 0.0:
-                expectation = f"~0.25·A{t}"
-            elif phs_analytic:
-                expectation = f"~(0.25·A{t} + {b_f**2:.4g}·C{t})/V_P"
-            else:
-                expectation = "no closed form under C transmission with this mating"
-            results[f"half_sib_liability{t}_correlation"] = _info(
-                f"PHS liability{t} correlation: {phs_pheno:.4f} (expected {expectation})",
-                observed=float(phs_pheno),
-                n_pairs=n_phs,
-            )
-
-            obs_c = pair_correlation(phs, f"C{t}")
-            # Without C transmission paternal half-sibs share no C. With it they
-            # share b_f**2 under the analytic gate; otherwise there is no formula.
-            expected_c = shared_environment_coefficient("PHS", *coefficients) if phs_analytic else None
-            if expected_c is None:
-                results[f"half_sib_shared_C{t}"] = _info(
-                    f"PHS shared C{t} correlation: {obs_c:.4f} (not asserted: C transmission outside "
-                    "random mating with scalar C and E; ADR 0025)",
-                    observed=float(obs_c),
-                    n_pairs=n_phs,
-                )
-                continue
-            # Reported, not asserted: `simace validate`'s household_draw tests the inheritance (ADR 0029).
-            results[f"half_sib_shared_C{t}"] = _info(
-                f"PHS shared C{t} correlation: {obs_c:.4f} (expected: {'~0' if expected_c == 0 else f'{expected_c:.4f}'})",
-                expected=float(expected_c),
-                observed=float(obs_c),
-                n_pairs=n_phs,
-            )
-    else:
-        for t in [1, 2]:
-            results[f"half_sib_liability{t}_correlation"] = _info(
-                f"Not enough PHS pairs ({n_phs}) for liability{t} correlation"
-            )
-            results[f"half_sib_shared_C{t}"] = _info(f"Not enough PHS pairs ({n_phs}) for C{t} correlation")
+    if n_phs < _MIN_PAIRS_FOR_CORR:
+        return HalfSibTrait(A_corr=a_corr, liability_corr=None, shared_C=None)
+    liability = PairCorrelation(observed=float(pair_correlation(phs, f"P{t}")), n_pairs=n_phs)
+    # Without C transmission paternal half-sibs share no C. With it they
+    # share b_f**2 under the analytic gate; otherwise there is no formula.
+    phs_analytic = analytic_applies("PHS", sim.assortment, sim.c_transmission, sim.vc, t)
+    expected_c = shared_environment_coefficient("PHS", *sim.c_transmission.coefficients(t)) if phs_analytic else None
+    shared_c = PairCorrelation(
+        observed=float(pair_correlation(phs, f"C{t}")),
+        n_pairs=n_phs,
+        expected=None if expected_c is None else float(expected_c),
+    )
+    return HalfSibTrait(A_corr=a_corr, liability_corr=liability, shared_C=shared_c)
 
 
 def validate_half_sibs(
@@ -186,16 +161,16 @@ def validate_half_sibs(
     sim: SimulationParams,
     sibling_moments: RelationshipMoments,
     mates: MateCorrelations,
-) -> dict[str, Any]:
-    """Validate half-sibling structure under the mating-pair model.
+) -> FamilyResult[HalfSibMeasurements]:
+    """Measure half-sibling structure under the mating-pair model.
 
-    Reports observed counts and proportions of full-sib, maternal half-sib,
-    and paternal half-sib pairs as informational checks. With a
-    zero-truncated Poisson mating model, both maternal and paternal
-    half-sibs arise naturally when individuals have multiple partners.
-
-    Also computes half-sib variance-component correlations (A, liability,
-    shared C) — see ``_validate_half_sib_correlations`` for pooling rules.
+    Measures the maternal half-sib share of maternal sibling pairs and of
+    offspring with maternal sibs. With a zero-truncated Poisson mating
+    model, both maternal and paternal half-sibs arise naturally when
+    individuals have multiple partners. Also measures half-sib
+    variance-component correlations (A, liability, shared C); see
+    ``_half_sib_trait`` for the pooling rules. Nothing here has a
+    closed-form verdict, so the family asserts no checks.
 
     Args:
         df: Pedigree DataFrame with columns id, mother, father, twin.
@@ -205,46 +180,19 @@ def validate_half_sibs(
             (:func:`~simace.analysis.quality._common.sibling_moments`).
         mates: The pedigree's mate correlations, for the AM-aware expected
             values (:func:`~simace.analysis.quality._common.mate_correlations`).
-
-    Returns:
-        Dict of check-name to result dicts.
     """
-    results: dict[str, Any] = {}
-
-    n_full, n_mat, n_pat = (int(category_cell(sibling_moments, code).counts) for code in SIBLING_CATEGORIES)
-
-    # Report sibling structure (informational — no closed-form expected value)
+    n_full, n_mat, _n_pat = (int(category_cell(sibling_moments, code).counts) for code in SIBLING_CATEGORIES)
     total_maternal_pairs = n_full + n_mat
-    if total_maternal_pairs > 0:
-        observed_half_sib_prop = n_mat / total_maternal_pairs
-        # Range check: at lambda=0.5, most people have 1 partner, so half-sibs
-        # should be present but not dominant. Wide tolerance for any lambda.
-        results["half_sib_pair_proportion"] = _info(
-            f"Maternal half-sib pair proportion: {observed_half_sib_prop:.4f} "
-            f"(full={n_full}, mat_hs={n_mat}, pat_hs={n_pat})",
-            observed=float(observed_half_sib_prop),
-            n_full_sib_pairs=n_full,
-            n_maternal_half_sib_pairs=n_mat,
-            n_paternal_half_sib_pairs=n_pat,
-        )
-    else:
-        results["half_sib_pair_proportion"] = _info("No maternal sibling pairs to check")
+    pair_proportion = n_mat / total_maternal_pairs if total_maternal_pairs > 0 else None
 
-    # Offspring with maternal half-sib (informational)
     household = household_sibling_counts(df)
     n_offspring_with_sibs = household["n_offspring_with_sibs"]
     n_offspring_with_hs = household["n_offspring_with_maternal_half_sib"]
-    if n_offspring_with_sibs > 0:
-        observed_frac = n_offspring_with_hs / n_offspring_with_sibs
-        results["offspring_with_half_sib"] = _info(
-            f"Offspring with maternal half-sib: {observed_frac:.4f} ({n_offspring_with_hs}/{n_offspring_with_sibs})",
-            observed=float(observed_frac),
-            n_offspring_with_half_sib=int(n_offspring_with_hs),
-            n_offspring_with_sibs=int(n_offspring_with_sibs),
-        )
-    else:
-        results["offspring_with_half_sib"] = _info("No offspring with maternal siblings to check")
+    offspring_with_half_sib = n_offspring_with_hs / n_offspring_with_sibs if n_offspring_with_sibs > 0 else None
 
-    _validate_half_sib_correlations(mates, sibling_moments, sim, results)
-
-    return results
+    measurements = HalfSibMeasurements(
+        pair_proportion=pair_proportion,
+        offspring_with_half_sib=offspring_with_half_sib,
+        traits=(_half_sib_trait(mates, sibling_moments, sim, 1), _half_sib_trait(mates, sibling_moments, sim, 2)),
+    )
+    return FamilyResult(measurements, ())

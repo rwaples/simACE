@@ -23,6 +23,8 @@ from .report_schema import (
 )
 
 if TYPE_CHECKING:
+    from .quality.assortative_mating import MateCorrelation
+    from .quality.check import PairCorrelation
     from .quality.runner import QualityReport
     from .sample_stats import SampleStats
 
@@ -61,13 +63,10 @@ def extract_truth(
     per_gen = quality.per_generation
     pop = quality.population.measurements
     twins = quality.twins.measurements
-    half = quality.legacy["half_sibs"]
-    am = quality.legacy["assortative_mating"]
+    half = quality.half_sibs.measurements
+    am = quality.assortative_mating.measurements
     cons = quality.consanguineous_matings
     reconciliation = cons.find("grandparent_reconciliation")
-
-    def obs(group: dict[str, Any], key: str) -> Any:
-        return (group.get(key) or {}).get("observed")
 
     traits: dict[str, Any] = {}
     for t in (1, 2):
@@ -99,15 +98,15 @@ def extract_truth(
             "realized_by_generation": realized_by_generation,
         }
 
-    half_sibs = {
-        "pair_proportion": obs(half, "half_sib_pair_proportion"),
-        "offspring_with_half_sib": obs(half, "offspring_with_half_sib"),
+    half_sibs: dict[str, Any] = {
+        "pair_proportion": half.pair_proportion,
+        "offspring_with_half_sib": half.offspring_with_half_sib,
     }
-    for t in (1, 2):
+    for t, sibs in enumerate(half.traits, start=1):
         half_sibs[f"trait{t}"] = {
-            "A_corr": obs(half, f"half_sib_A{t}_correlation"),
-            "liability_corr": obs(half, f"half_sib_liability{t}_correlation"),
-            "shared_C": obs(half, f"half_sib_shared_C{t}"),
+            "A_corr": _observed(sibs.A_corr),
+            "liability_corr": _observed(sibs.liability_corr),
+            "shared_C": _observed(sibs.shared_C),
         }
 
     family_structure = {
@@ -144,37 +143,33 @@ def extract_truth(
             "family_structure": family_structure,
             "cross_trait": {"rA": stat.rA, "rC": stat.rC, "rE": stat.rE},
             "assortative_mating": {
-                "mate_corr_liability1": obs(am, "mate_corr_liability1"),
-                "mate_corr_liability2": obs(am, "mate_corr_liability2"),
-                "mate_corr_A1": obs(am, "mate_corr_A1"),
-                "mate_corr_A2": obs(am, "mate_corr_A2"),
+                "mate_corr_liability1": _observed(am.liability[0]),
+                "mate_corr_liability2": _observed(am.liability[1]),
+                "mate_corr_A1": am.genetic[0],
+                "mate_corr_A2": am.genetic[1],
             },
         }
     }
 
 
+def _observed(measured: PairCorrelation | MateCorrelation | None) -> float | None:
+    return None if measured is None else measured.observed
+
+
 def extract_estimators(quality: QualityReport, observed_h2_estimators: dict[str, Any]) -> dict[str, Any]:
     """Heritability estimators: relationship/outcome-derived, by scale."""
-    her = quality.legacy["heritability"]
-
-    def obs(key: str) -> Any:
-        return (her.get(key) or {}).get("observed")
-
-    def reg(key: str, field: str) -> Any:
-        return (her.get(key) or {}).get(field)
-
     liability_scale: dict[str, Any] = {}
-    for t in (1, 2):
+    for t, her in enumerate(quality.heritability.measurements.traits, start=1):
         liability_scale[f"trait{t}"] = {
-            "mz_twin_A_corr": obs(f"mz_twin_A{t}_correlation"),
-            "mz_twin_liability_corr": obs(f"mz_twin_liability{t}_correlation"),
-            "dz_sibling_A_corr": obs(f"dz_sibling_A{t}_correlation"),
-            "dz_sibling_liability_corr": obs(f"dz_sibling_liability{t}_correlation"),
-            "falconer": obs(f"falconer_estimate_trait{t}"),
-            "parent_offspring_A_slope": reg(f"parent_offspring_A{t}_regression", "slope"),
-            "parent_offspring_A_r2": reg(f"parent_offspring_A{t}_regression", "r_squared"),
-            "parent_offspring_liability_slope": reg(f"parent_offspring_liability{t}_regression", "slope"),
-            "parent_offspring_liability_r2": reg(f"parent_offspring_liability{t}_regression", "r_squared"),
+            "mz_twin_A_corr": _observed(her.mz_A_corr),
+            "mz_twin_liability_corr": _observed(her.mz_liability_corr),
+            "dz_sibling_A_corr": _observed(her.dz_A_corr),
+            "dz_sibling_liability_corr": _observed(her.dz_liability_corr),
+            "falconer": her.falconer,
+            "parent_offspring_A_slope": None if her.po_A is None else her.po_A.slope,
+            "parent_offspring_A_r2": None if her.po_A is None else her.po_A.r_squared,
+            "parent_offspring_liability_slope": None if her.po_liability is None else her.po_liability.slope,
+            "parent_offspring_liability_r2": None if her.po_liability is None else her.po_liability.r_squared,
         }
 
     return {"heritability": {"observed_scale": observed_h2_estimators, "liability_scale": liability_scale}}

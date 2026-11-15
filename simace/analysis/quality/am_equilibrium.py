@@ -17,14 +17,15 @@ or not the run has converged).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from simace.simulation.am_equilibrium import am_equilibrium_variance, am_variance_trajectory
 
-from ._common import _info, _result
 from .am_relatedness import am_relatedness_mode
+from .check import FamilyResult, QualityCheck
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -33,56 +34,59 @@ if TYPE_CHECKING:
     from simace.simulation.params import SimulationParams
 
 
-def validate_am_equilibrium(df: pd.DataFrame | pl.DataFrame, sim: SimulationParams) -> dict[str, Any]:
-    """Validate that ``Var(A)`` reaches the AM-inflated equilibrium per trait.
+@dataclass(frozen=True)
+class AMEquilibriumMeasurements:
+    """What the AM-equilibrium family measures.
 
-    Emits no checks when the mating schedule has no assortment (Wright-Fisher,
+    Attributes:
+        final_var_A: ``Var(A{t})`` in the last recorded generation, per trait,
+            where the univariate recursion applies to the trait's assortment
+            (single-trait, constant, scalar C and E); ``None`` otherwise.
+    """
+
+    final_var_A: tuple[float | None, float | None]
+
+
+_NOTHING_MEASURED = AMEquilibriumMeasurements(final_var_A=(None, None))
+
+
+def validate_am_equilibrium(
+    df: pd.DataFrame | pl.DataFrame, sim: SimulationParams
+) -> FamilyResult[AMEquilibriumMeasurements]:
+    """Check that ``Var(A)`` reaches the AM-inflated equilibrium per trait.
+
+    Checks nothing when the mating schedule has no assortment (Wright-Fisher,
     or ``assort1``, ``assort2`` and the ``assort_matrix`` diagonal all zero).
-    For an assorting trait, asserts the observed final-generation ``Var(A)``
-    against the infinitesimal recursion prediction; reports the closed-form
-    equilibrium ``a²`` alongside.
+    For an assorting trait, checks the observed final-generation ``Var(A)``
+    against the infinitesimal recursion prediction, with the closed-form
+    equilibrium ``a²`` in the message.
 
-    Reports the per-trait result as informational, without asserting it, when
-    the equilibrium is ill-defined or not modelled by the univariate
-    recursion: AM that varies by generation, dict-valued C / E, both-trait
-    assortment (cross-trait paths), or C transmission, whose A-C covariance the
-    recursion omits (ADR 0025).
+    Does not check a trait whose equilibrium is ill-defined or not modelled
+    by the univariate recursion: AM that varies by generation, dict-valued
+    C / E, both-trait assortment (cross-trait paths), or C transmission,
+    whose A-C covariance the recursion omits (ADR 0025). Under C
+    transmission the final ``Var(A)`` is still measured.
 
     Args:
         df: Pedigree DataFrame with ``id`` and ``A1``/``A2`` columns.
         sim: The rep's parameters.
-
-    Returns:
-        Dict of check-name to result dicts (possibly empty).
     """
-    results: dict[str, Any] = {}
-
     assortment = sim.assortment
     if not assortment.any_active:
-        return results  # random mating -> nothing to validate
+        return FamilyResult(_NOTHING_MEASURED, ())  # random mating -> nothing to validate
 
     G_sim = sim.span.G_sim
     gen_labels = df["id"].to_numpy() // sim.N
     last_mask = gen_labels == (sim.span.G_ped - 1)
     n_last = int(last_mask.sum())
 
+    checks = []
+    final_var_A: dict[int, float] = {}
     for t in (1, 2):
-        mode = am_relatedness_mode(assortment, t)
-        if mode == "none":
+        if am_relatedness_mode(assortment, t) != "single":
             continue
-        if mode == "bivariate":
-            results[f"am_equilibrium_A{t}"] = _info(
-                f"Both-trait AM active; AM Var(A{t}) equilibrium not validated "
-                f"(cross-trait paths not in the univariate recursion).",
-            )
-            continue
-
         if not assortment.constant(t) or not sim.vc.scalar_E(t):
-            results[f"am_equilibrium_A{t}"] = _info(
-                f"Per-generation AM/C/E (dict-valued); AM equilibrium ill-defined, skipping trait {t}.",
-            )
             continue
-
         A_base = float(sim.vc.A[t - 1])
         if A_base <= 0.0 or n_last < 2:
             continue
@@ -93,14 +97,8 @@ def validate_am_equilibrium(df: pd.DataFrame | pl.DataFrame, sim: SimulationPara
         V_pred = float(am_variance_trajectory(A_base, V_env, r_ho, int(G_sim))[-1])
         a2 = float(am_equilibrium_variance(A_base, V_env, r_ho))
         obs = float(np.var(df[f"A{t}"].to_numpy()[last_mask]))
-
+        final_var_A[t] = obs
         if sim.c_transmission.coefficients(t) != (0.0, 0.0):
-            results[f"am_equilibrium_A{t}"] = _info(
-                f"AM Var(A{t}) final generation: {obs:.4f} (recursion predicts {V_pred:.4f}, not asserted: "
-                f"C transmission gives mates and offspring an A-C covariance the recursion omits; ADR 0025)",
-                observed=obs,
-                n_individuals=n_last,
-            )
             continue
 
         # SE of a sample variance for ~Gaussian A: V·sqrt(2/(n-1)). The 5x
@@ -109,19 +107,16 @@ def validate_am_equilibrium(df: pd.DataFrame | pl.DataFrame, sim: SimulationPara
         # transmission bug shifts Var(A) far beyond this.
         se = V_pred * np.sqrt(2.0 / max(n_last - 1, 1))
         tol = max(0.03, 5.0 * se)
-        ok = abs(obs - V_pred) < tol
-
-        results[f"am_equilibrium_A{t}"] = _result(
-            ok,
-            f"AM Var(A{t}) final generation: {obs:.4f} (predicted {V_pred:.4f} "
-            f"after {int(G_sim)} gens; equilibrium a²={a2:.4f}; tol {tol:.4f})",
-            expected=V_pred,
-            observed=obs,
-            equilibrium=a2,
-            baseline=A_base,
-            mate_corr=r_ho,
-            n_steps=int(G_sim),
-            n_individuals=n_last,
+        checks.append(
+            QualityCheck(
+                f"am_equilibrium_A{t}",
+                abs(obs - V_pred) < tol,
+                f"AM Var(A{t}) final generation: {obs:.4f} (predicted {V_pred:.4f} "
+                f"after {int(G_sim)} gens; equilibrium a²={a2:.4f}; tol {tol:.4f})",
+                observed=obs,
+                expected=V_pred,
+            )
         )
 
-    return results
+    measurements = AMEquilibriumMeasurements(final_var_A=(final_var_A.get(1), final_var_A.get(2)))
+    return FamilyResult(measurements, tuple(checks))
