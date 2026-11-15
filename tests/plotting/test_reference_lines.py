@@ -129,3 +129,11 @@ def test_zero_variance_trait_has_no_reference_line():
         reference_midparent_slope(*reference_records({**params, "Ctm_maternal1": 0.0, "Ctm_paternal1": 0.0}), 1) is None
     )
     assert _parametric_per_relationship_type(sim_params(params), 1, ["MZ", "FS", "MO"]) == {}
+
+
+@pytest.mark.parametrize("cell", ["not a number", "[0.1, 0.2]"], ids=["text", "list"])
+def test_a_cell_that_does_not_parse_draws_no_line(cell):
+    """One scenario's unparseable cell leaves it without lines instead of failing every validation plot."""
+    row = {**_PARAMS, "scenario": "s", "assort1": cell}
+    assert _reference_corr("FS", 1)(pd.DataFrame([row])) is None
+    assert _reference_slope(1)(pd.DataFrame([row])) is None

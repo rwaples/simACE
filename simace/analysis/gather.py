@@ -104,7 +104,7 @@ def extract_metrics(report_path: str) -> dict[str, Any]:
         "C2": params.get("C2"),
         "E2": params.get("E2"),
         # Cross-trait correlations.  ``rE`` resolves to None for reports
-        # predating the key, which the expected-value marker skips.
+        # predating the key; such a row draws no reference lines.
         "rA": params.get("rA"),
         "rC": params.get("rC"),
         "rE": params.get("rE"),

@@ -27,7 +27,7 @@ from .report_schema import (
 )
 
 # Skip these when normalizing quality checks — they carry no pass/fail rows.
-_NON_CHECK_CATEGORIES = frozenset({"per_generation", "summary", "family_size_distribution", "parameters"})
+_NON_CHECK_CATEGORIES = frozenset({"per_generation", "summary", "family_size_distribution"})
 
 
 def _single(result: dict[str, Any], prefix: str) -> Any:

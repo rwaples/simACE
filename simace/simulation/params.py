@@ -432,8 +432,10 @@ class SimulationParams:
         Keys an older ``params.yaml`` lacks take :data:`LEGACY_DEFAULTS`. The
         records check their own invariants; the checks that a simulation can
         run on the parameters (``mating_lambda``, ``p_mztwin``, C transmission
-        feasibility, the inbreeding history size) are :meth:`create`'s. So a
-        report scored with a deliberately wrong coefficient still parses.
+        feasibility, the inbreeding cost refusal and history size) are
+        :meth:`create`'s. So a report scored with a deliberately wrong
+        coefficient still parses, and a finished rep still reads after the
+        inbreeding cost model changes.
         """
         span = Span.from_mapping(m)
         return cls(
@@ -445,7 +447,9 @@ class SimulationParams:
             vc=VarianceComponents.from_mapping(m),
             assortment=Assortment.from_mapping(m, span),
             c_transmission=CTransmission.from_mapping(m),
-            inbreeding=resolve(_legacy(m, "inbreeding_mode"), _legacy(m, "inbreeding_depth"), m["N"], span.G_sim),
+            inbreeding=resolve(
+                _legacy(m, "inbreeding_mode"), _legacy(m, "inbreeding_depth"), m["N"], span.G_sim, refuse=False
+            ),
         )
 
 

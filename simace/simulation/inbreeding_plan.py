@@ -129,13 +129,13 @@ def _packed(N: int, depth: int) -> bool:
     return ib + (depth - 1) + gb <= _PACKED_BITS
 
 
-def _exact(N: int, G_sim: int, hint: str) -> InbreedingPlan:
+def _exact(N: int, G_sim: int, hint: str, refuse: bool) -> InbreedingPlan:
     t_walk = predicted_seconds("walkd2", N, G_sim)
     if 8 * N * N <= _DENSEP_MAX_BYTES and predicted_seconds("densep", N, G_sim) <= t_walk:
         engine, t = "densep", predicted_seconds("densep", N, G_sim)
     else:
         engine, t = "walkd2", t_walk
-    if _refused(t):
+    if refuse and _refused(t):
         raise InbreedingRefused(
             f"exact inbreeding at N={N}, G_sim={G_sim} is refused: {engine} is predicted to take {t:,.0f} s at 8 "
             f"threads, and twice that exceeds {_REFUSE_SECONDS:,.0f} s (ADR 0033 §4); {hint}"
@@ -143,14 +143,17 @@ def _exact(N: int, G_sim: int, hint: str) -> InbreedingPlan:
     return InbreedingPlan("exact", engine)  # type: ignore[arg-type]
 
 
-def resolve(mode: str, depth: int, N: int, G_sim: int) -> InbreedingPlan:
+def resolve(mode: str, depth: int, N: int, G_sim: int, *, refuse: bool = True) -> InbreedingPlan:
     """Return the plan for ``mode`` and ``depth`` on ``N`` per generation and ``G_sim`` simulated generations.
+
+    ``refuse=False`` returns the plan a refused run would have had: reading
+    a finished rep's parameters must not depend on the cost model.
 
     Raises:
         ValueError: for a mode outside :data:`INBREEDING_MODES` or a depth
             that is not an integer >= 1.
-        InbreedingRefused: when the run would be exact and its predicted
-            time fails the refusal rule.
+        InbreedingRefused: when ``refuse`` and the run would be exact and
+            its predicted time fails the refusal rule.
     """
     if mode not in INBREEDING_MODES:
         raise ValueError(f"inbreeding mode must be one of {list(INBREEDING_MODES)}, got {mode!r}")
@@ -159,11 +162,11 @@ def resolve(mode: str, depth: int, N: int, G_sim: int) -> InbreedingPlan:
     if mode == "off":
         return OFF
     if mode == "exact":
-        return _exact(N, G_sim, "use mode: approx")
+        return _exact(N, G_sim, "use mode: approx", refuse)
     if depth >= G_sim:
-        return _exact(N, G_sim, f"lower depth below G_sim ({G_sim}; default {DEFAULT_DEPTH})")
+        return _exact(N, G_sim, f"lower depth below G_sim ({G_sim}; default {DEFAULT_DEPTH})", refuse)
     if 8 * N * N <= _HANDOFF_DENSE_BYTES and N * N * G_sim <= _HANDOFF_N2G:
-        return _exact(N, G_sim, "use mode: approx")  # unreachable: N^2 G_sim <= 1e9 predicts < 1 s
+        return _exact(N, G_sim, "use mode: approx", refuse)  # unreachable: N^2 G_sim <= 1e9 predicts < 1 s
     return InbreedingPlan("approx", "xexact", depth, _packed(N, depth))
 
 

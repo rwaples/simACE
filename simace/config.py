@@ -340,12 +340,12 @@ class Scenario:
         try:
             span, vc, assortment, ctm = _pedigree_records(flat, explicit)
             _check_phenotype(flat)
-        except ValueError as exc:
-            raise ValueError(f"Scenario '{name}': {exc}") from exc
         except KeyError as exc:
             raise ValueError(
                 f"Scenario '{name}': {exc.args[0]} is set neither in the scenario nor in the defaults"
             ) from exc
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Scenario '{name}': {exc}") from exc
         _warn_am_transmission(name, vc, assortment, ctm)
         return cls(name, MappingProxyType(dict(explicit)), flat, span, vc, assortment, ctm)
 

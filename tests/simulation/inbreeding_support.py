@@ -78,7 +78,9 @@ def install_capture(monkeypatch) -> Capture:
 def force_plan(monkeypatch, plan: InbreedingPlan) -> None:
     """Make ``SimulationParams`` resolve every non-off mode to ``plan``, past the handoff and the cost rule."""
     resolve = params_mod.resolve
-    monkeypatch.setattr(params_mod, "resolve", lambda mode, *a: resolve(mode, *a) if mode == "off" else plan)
+    monkeypatch.setattr(
+        params_mod, "resolve", lambda mode, *a, **kw: resolve(mode, *a, **kw) if mode == "off" else plan
+    )
 
 
 class Dense64:

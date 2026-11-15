@@ -85,3 +85,20 @@ def test_assortment_is_active_exactly_when_the_simulator_mates_on_it(case):
         assert not pedigree.equals(reference)
     else:
         assert_frame_equal(pedigree, reference)
+
+
+def test_reading_a_rep_never_runs_the_inbreeding_cost_refusal():
+    """A finished rep must still parse if the cost model would now refuse it."""
+    from simace.simulation.inbreeding_plan import InbreedingRefused
+
+    refused = {
+        **_PARAMS,
+        "N": 5_000_000,
+        "G_sim": 60,
+        "assort1": 0.0,
+        "assort2": 0.0,
+        "inbreeding_mode": "exact",
+    }
+    assert SimulationParams.from_mapping(refused).inbreeding.mode == "exact"
+    with pytest.raises(InbreedingRefused):
+        SimulationParams.create(**{k: v for k, v in refused.items() if k != "inbreeding_mode"}, inbreeding_mode="exact")

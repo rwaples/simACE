@@ -42,6 +42,20 @@ from simace.plotting.stats_report import truth_entry, truth_mean
 logger = logging.getLogger(__name__)
 
 
+def _configured_share(sim: SimulationParams, component: str, t: int, generations: list[int]) -> np.ndarray:
+    """Configured ``component / (A + C + E)`` of trait ``t`` per recorded generation, the scale of the observed points.
+
+    Recorded generation ``g`` carries the E of mating iteration ``g + burnin``.
+    """
+    vc, span = sim.vc, sim.span
+    A, C = float(vc.A[t - 1]), float(vc.C[t - 1])
+    E = vc.E_per_gen(t, span.G_sim)
+    value = A if component == "A" else C
+    totals = np.array([A + C + E[min(g + span.burnin, span.G_sim - 1)] for g in generations])
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.where(totals > 0, value / totals, np.nan)
+
+
 def _generation_keys(per_gen_all: list[dict[str, Any]]) -> list[str]:
     """Return sorted generation keys from the first non-empty replicate."""
     first = next((pg for pg in per_gen_all if pg), None)
@@ -192,15 +206,14 @@ def plot_heritability_by_generation(
                     ax.plot(x[finite_mean], mean_values[finite_mean], color=color, linewidth=1.4, label=f"Mean {label}")
 
             if sim is not None:
-                configured = sim.vc.A if component == "A" else sim.vc.C
                 ax.plot(
                     x,
-                    np.full(len(generations), float(configured[trait_num - 1])),
+                    _configured_share(sim, component, trait_num, generations),
                     color=color,
                     linestyle="--",
                     linewidth=1.0,
                     alpha=0.7,
-                    label=f"Configured {component}{trait_num}",
+                    label=f"Configured {component}{trait_num} share",
                 )
 
         ax.set_xlabel("Generation")

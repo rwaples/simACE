@@ -308,7 +308,10 @@ def _literal(value: Any) -> Any:
 
 
 def _scenario_records(d: pd.DataFrame) -> tuple[Assortment, CTransmission, VarianceComponents] | None:
-    """A gathered scenario's parameter records, as the reference lines read them; None when a column is missing.
+    """A gathered scenario's parameter records, as the reference lines read them; None when they do not parse.
+
+    A missing column, or a cell that does not parse back to a valid value,
+    leaves that scenario without reference lines rather than failing the plots.
 
     Empty cells are dropped (absent, not active), and dict- or matrix-valued
     cells (per-generation E/assortment, ``assort_matrix``) are parsed back,
@@ -323,7 +326,7 @@ def _scenario_records(d: pd.DataFrame) -> tuple[Assortment, CTransmission, Varia
             CTransmission.from_mapping(params),
             VarianceComponents.from_mapping(params),
         )
-    except KeyError:
+    except KeyError, TypeError, ValueError:
         return None
 
 

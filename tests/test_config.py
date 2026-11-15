@@ -307,6 +307,16 @@ class TestIsZeroAssort:
         assert not _is_zero_assort({0: -0.1})
 
 
+@pytest.mark.parametrize(
+    "overrides",
+    [{"E1": {0: 0.5, "3": 0.7}}, {"assort1": [0.1]}],
+    ids=["quoted_generation_key", "list_assortment"],
+)
+def test_a_malformed_value_names_its_scenario(overrides):
+    with pytest.raises(ValueError, match=r"^Scenario 'sc': "):
+        _validate({"defaults": {}, "scenarios": {"sc": overrides}})
+
+
 class TestMatingModelValidation:
     """Strict-WF override validation in ``Scenario.parse``.
 

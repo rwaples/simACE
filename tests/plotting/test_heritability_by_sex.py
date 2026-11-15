@@ -52,3 +52,11 @@ def test_outside_the_closed_form_each_generation_reads_its_truth(monkeypatch, tm
     params = {**_PARAMS, "Ctm_maternal1": 0.5, "Ctm_paternal1": 0.5, "assort1": 0.3}
     [(x, y)] = _expected_lines(monkeypatch, tmp_path, _stats({2: 0.66, 3: 0.71}), params)
     assert (x, y) == ([2, 3], pytest.approx([0.66, 0.71]))
+
+
+def test_the_configured_share_is_on_the_scale_of_the_observed_proportions():
+    """The dashed configured line is A / (A + C + E), as the points are, with each generation's E."""
+    sim = sim_params(A1=0.5, C1=0.2, E1={0: 0.8, 3: 0.3}, G_ped=3, G_sim=4)
+    share = plot_heritability._configured_share(sim, "A", 1, [0, 1, 2])
+    # Recorded generation g carries iteration g + 1's E: 0.8, 0.8, then 0.3 from iteration 3.
+    assert share == pytest.approx([0.5 / 1.5, 0.5 / 1.5, 0.5 / 1.0])
