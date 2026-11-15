@@ -15,7 +15,14 @@ Two modes, each writing one JSON file:
     content hash, its ``report.yaml`` and ``validation.yaml`` with timing and
     version fields dropped.
 
-Compare two fingerprints with ``diff`` (the files are sorted, indented JSON)::
+``bytes``
+    A covering subset as shipped (ascertainment kept) plus variants of
+    ``small_test`` that reach the report's empty and early-return branches,
+    run with plots: each rep's ``report.yaml``, ``plot_payload.yaml`` and
+    figures, byte for byte, with version and date lines masked.
+
+Compare two fingerprints with ``diff`` (the files are sorted, indented JSON;
+``diff -r`` for bytes)::
 
     pixi run python tools/scenario_fingerprint.py decisions -o before.json
     pixi run python tools/scenario_fingerprint.py pipeline --scratch /tmp/fp -o before-pipeline.json
@@ -205,6 +212,109 @@ def pipeline(scratch: Path, out: Path, jobs: int) -> None:
     print(f"{len(result)} reps -> {out}")
 
 
+#: Scenarios the bytes mode runs as shipped (N capped at PIPELINE_N, one rep, ascertainment kept).
+BYTES_SUBSET = (
+    "small_test",
+    "coverage_scenario",
+    "am",
+    "am_asym",
+    "am_plus_c",
+    "inh_am_matrix",
+    "wf_smoke_short",
+    "maternal",
+    "inh_ctm",
+    "am_per_generation",
+    "growing_E",
+)
+
+#: Variants of small_test that reach the report's empty and early-return branches.
+BYTES_VARIANTS: dict[str, dict[str, Any]] = {
+    "br_ascertained": {"ascertainment": {"N_sample": 300, "case_ascertainment_ratio": 3, "dropout_rate": 0.1}},
+    "br_no_twins": {"pedigree": {"p_mztwin": 0.0}},
+    "br_tiny": {"N": 30, "G_ped": 3, "G_sim": 3, "G_pheno": 2},
+    "br_one_generation": {"G_ped": 1, "G_sim": 1, "G_pheno": 1},
+    "br_last_generation": {"G_pheno": 1, "ascertainment": {"N_sample": 200}},
+    "br_zero_windows": {"censoring": {"gen_censoring": {g: [80, 80] for g in range(6)}}},
+    "br_no_windows": {"censoring": {"gen_censoring": {}}},
+    "br_zero_A": {"pedigree": {"trait1": {"A": 0.0, "C": 0.0, "E": 1.0}}},
+}
+
+#: Lines that differ between builds, not between computations.
+_VOLATILE_LINE = ("simace_version:", "<dc:date>")
+
+
+def _deep_update(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(base)
+    for key, value in extra.items():
+        merged[key] = (
+            _deep_update(merged[key], value) if isinstance(value, dict) and isinstance(merged.get(key), dict) else value
+        )
+    return merged
+
+
+def _bytes_config(scratch: Path) -> None:
+    """Write ``fp.yaml``: the bytes subset as shipped (one rep, N <= PIPELINE_N) plus the branch variants."""
+    from simace.core.yaml_io import load_yaml
+
+    config = scratch / "config"
+    config.mkdir(parents=True, exist_ok=True)
+    (scratch / "pyproject.toml").write_text('[project]\nname = "simace"\n')
+    (config / "_default.yaml").write_text((ROOT / "config" / "_default.yaml").read_text())
+    raw: dict[str, Any] = {}
+    for path in sorted((ROOT / "config").glob("*.yaml")):
+        if not path.name.startswith("_"):
+            raw.update({k: v for k, v in (load_yaml(path) or {}).items() if k in BYTES_SUBSET})
+    missing = set(BYTES_SUBSET) - set(raw)
+    if missing:
+        raise SystemExit(f"subset scenarios not found: {sorted(missing)}")
+    for name, source in list(raw.items()):
+        entry = {k: v for k, v in source.items() if k != "folder"}
+        entry["N"] = min(int(entry.get("N", PIPELINE_N)), PIPELINE_N)
+        entry["replicates"] = 1
+        raw[name] = entry
+    for name, extra in BYTES_VARIANTS.items():
+        raw[name] = _deep_update(raw["small_test"], extra)
+    (config / "fp.yaml").write_text(yaml.safe_dump(raw, sort_keys=True))
+
+
+def _masked(path: Path) -> bytes:
+    lines = path.read_bytes().splitlines(keepends=True)
+    return b"".join(line for line in lines if not any(tag.encode() in line for tag in _VOLATILE_LINE))
+
+
+def bytes_mode(scratch: Path, out: Path, jobs: int) -> None:
+    """Run the bytes subset with plots under ``scratch``; copy each rep's report, payload and figures, masked, to ``out``.
+
+    Compare two runs with ``diff -r before/ after/``; ``out/SHA256SUMS`` lists every file.
+    """
+    _bytes_config(scratch)
+    roots = ["--config-dir", str(scratch / "config"), "--results", str(scratch / "results")]
+    roots += ["--logs", str(scratch / "logs")]
+    done = subprocess.run(["simace", "run", "fp", "--jobs", str(jobs), *roots], cwd=scratch, check=False)
+    if done.returncode not in (0, 1):  # 1: a scenario's plots failed; its failed plot logs are fingerprinted
+        raise SystemExit(f"simace run exited {done.returncode}")
+    results = scratch / "results" / "fp"
+    failed = sorted(
+        p.parent.name for p in (scratch / "logs" / "fp").glob("*/plot.log") if b"Traceback" in p.read_bytes()
+    )
+    (out / "PLOT_FAILURES").write_text("".join(f"{name}\n" for name in failed))
+    files = [p for p in sorted(results.glob("*/rep1/*.yaml")) if p.name in ("report.yaml", "plot_payload.yaml")]
+    # plots.yaml and timing.tsv are run bookkeeping (input mtimes, timings), not figures.
+    bookkeeping = {"plots.yaml", "timing.tsv"}
+    files += [
+        p for p in sorted(results.glob("*/plots/*")) if p.is_file() and p.suffix != ".pdf" and p.name not in bookkeeping
+    ]
+    sums = []
+    for path in files:
+        rel = path.relative_to(results)
+        data = _masked(path)
+        (out / rel).parent.mkdir(parents=True, exist_ok=True)
+        (out / rel).write_bytes(data)
+        sums.append(f"{hashlib.sha256(data).hexdigest()}  {rel}\n")
+    (out / "SHA256SUMS").write_text("".join(sums))
+    print(f"{len(sums)} files from {len(BYTES_SUBSET) + len(BYTES_VARIANTS)} scenarios -> {out}")
+
+
 def main() -> None:
     """Parse the mode and run it."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
@@ -215,11 +325,17 @@ def main() -> None:
     p.add_argument("--scratch", type=Path, required=True, help="Empty scratch root for config/results/logs")
     p.add_argument("-o", "--output", type=Path, required=True)
     p.add_argument("--jobs", type=int, default=6)
+    b = sub.add_parser("bytes", help="Report, payload and figure bytes of a covering subset plus branch variants")
+    b.add_argument("--scratch", type=Path, required=True, help="Empty scratch root for config/results/logs")
+    b.add_argument("-o", "--output", type=Path, required=True, help="Directory for the masked copies")
+    b.add_argument("--jobs", type=int, default=6)
     args = parser.parse_args()
     if args.mode == "decisions":
         decisions(args.output)
-    else:
+    elif args.mode == "pipeline":
         pipeline(args.scratch, args.output, args.jobs)
+    else:
+        bytes_mode(args.scratch, args.output, args.jobs)
 
 
 if __name__ == "__main__":
