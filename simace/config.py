@@ -26,7 +26,7 @@ from simace.core.relationships import C_TRANSMISSION_KEYS, transmission_key
 from simace.core.standardize import coerce_standardize_mode
 from simace.core.yaml_io import load_yaml
 from simace.simulation.inbreeding_plan import DEFAULT_DEPTH, INBREEDING_MODES
-from simace.simulation.params import CTransmission, am_transmitted_share
+from simace.simulation.params import VALID_MATING_MODELS, CTransmission, am_transmitted_share
 
 logger = logging.getLogger(__name__)
 
@@ -372,12 +372,6 @@ def resolve_scenarios(config_dir: Path | str, defaults: dict | None = None) -> d
     return scenarios
 
 
-#: Allowed values for ``pedigree.mating_model``.  Re-exported so
-#: :func:`simace.simulation.simulate.run_simulation` can validate against
-#: the same source of truth without re-declaring the set.
-VALID_MATING_MODELS: frozenset[str] = frozenset({"standard", "wright_fisher"})
-
-
 def _is_zero_assort(value: Any) -> bool:
     """Return True if ``value`` is a no-op assortative-mating setting.
 
@@ -399,7 +393,7 @@ def _warn_am_transmission(name: str, effective: dict) -> None:
     if effective.get("mating_model", "standard") != "standard":
         return
     matrix = effective.get("assort_matrix")
-    ct = CTransmission.from_params(effective)
+    ct = CTransmission.from_mapping(effective)
     for t in (1, 2):
         b_m, b_f = ct.maternal[t - 1], ct.paternal[t - 1]
         assort = matrix[t - 1][t - 1] if matrix is not None else effective.get(f"assort{t}", 0.0)
@@ -481,7 +475,7 @@ def _validate_pedigree_config(config: dict) -> None:
                 )
         C1, C2 = effective.get("C1", 0.0), effective.get("C2", 0.0)
         try:
-            CTransmission.from_params(effective).validate(C1, C2, effective.get("rC", 0.0))
+            CTransmission.from_mapping(effective).validate(C1, C2, effective.get("rC", 0.0))
         except ValueError as exc:
             raise ValueError(f"Scenario '{name}': {exc}") from exc
         _warn_am_transmission(name, effective)

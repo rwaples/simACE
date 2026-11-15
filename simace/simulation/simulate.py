@@ -27,6 +27,7 @@ __all__ = [
     "reproduce",
     "resolve_per_gen_param",
     "run_simulation",
+    "simulate",
 ]
 
 import argparse
@@ -41,10 +42,9 @@ from simace.core.schema import PEDIGREE, assert_schema
 from simace.simulation.assortment import (
     METROPOLIS_TOL,
     AssortmentPlan,
-    assortment_schedule,
     write_mating_log,
 )
-from simace.simulation.inbreeding_plan import DEFAULT_DEPTH, INBREEDING_MODES, resolve
+from simace.simulation.inbreeding_plan import DEFAULT_DEPTH, INBREEDING_MODES
 from simace.simulation.mating import (
     StandardMating,
     WrightFisherMating,
@@ -158,76 +158,79 @@ def run_simulation(
     Raises:
         ValueError: if any parameter is outside its valid range
     """
-    # Validate + normalize inputs.
-    # run_simulation is also a public test API, so validation cannot rely on
-    # config-load having run. See simace.simulation.params.SimulationParams.
-    params = SimulationParams.create(
-        seed=seed,
-        N=N,
-        G_ped=G_ped,
-        mating_lambda=mating_lambda,
-        p_mztwin=p_mztwin,
-        A1=A1,
-        C1=C1,
-        A2=A2,
-        C2=C2,
-        rA=rA,
-        rC=rC,
-        rE=rE,
-        E1=E1,
-        E2=E2,
-        G_sim=G_sim,
-        assort1=assort1,
-        assort2=assort2,
-        assort_matrix=assort_matrix,
-        mating_model=mating_model,
-        c_transmission=CTransmission(maternal=(Ctm_maternal1, Ctm_maternal2), paternal=(Ctm_paternal1, Ctm_paternal2)),
-        inbreeding_mode=inbreeding_mode,
-        inbreeding_depth=inbreeding_depth,
-    )
-    G_sim = params.G_sim
-
-    logger.info("Starting simulation: N=%d, G_ped=%d, seed=%d", N, G_ped, seed)
-    t0 = time.perf_counter()
-
-    rng = np.random.default_rng(seed)
-
-    # A and C are scalars (SimulationParams rejects maps); E may be a per-gen
-    # dict. These run for both mating models since reproduce() needs them.
-    E1_per_gen = resolve_per_gen_param(E1, G_sim, name="E1")
-    E2_per_gen = resolve_per_gen_param(E2, G_sim, name="E2")
-
-    sd_C1 = np.sqrt(C1)
-    sd_C2 = np.sqrt(C2)
-    sd_E1_per_gen = [np.sqrt(v) for v in E1_per_gen]
-    sd_E2_per_gen = [np.sqrt(v) for v in E2_per_gen]
-
-    # A is constant across generations
-    sd_A1 = np.sqrt(A1)
-    sd_A2 = np.sqrt(A2)
-
-    # Standard-model AM plan: the assortment schedule, rho_w, and the
-    # |rho_w| < 1 + 4x4 PSD checks are validated up front inside build().
-    # WF skips this entirely — no AM, no rho_w-driven cross-AM.
-    mate: StandardMating | WrightFisherMating
-    if mating_model == "standard":
-        assort1_per_gen, assort2_per_gen = assortment_schedule(assort1, assort2, G_sim=G_sim, assort_matrix=params.R_mf)
-        plan = AssortmentPlan.build(
-            assort1_per_gen=assort1_per_gen,
-            assort2_per_gen=assort2_per_gen,
-            R_mf_user=params.R_mf,
+    return simulate(
+        SimulationParams.create(
+            seed=seed,
+            N=N,
+            G_ped=G_ped,
+            mating_lambda=mating_lambda,
+            p_mztwin=p_mztwin,
+            A1=A1,
+            C1=C1,
+            A2=A2,
+            C2=C2,
             rA=rA,
             rC=rC,
             rE=rE,
-            A1=A1,
-            A2=A2,
-            C1=C1,
-            C2=C2,
+            E1=E1,
+            E2=E2,
+            G_sim=G_sim,
+            assort1=assort1,
+            assort2=assort2,
+            assort_matrix=assort_matrix,
+            mating_model=mating_model,
+            c_transmission=CTransmission(
+                maternal=(Ctm_maternal1, Ctm_maternal2), paternal=(Ctm_paternal1, Ctm_paternal2)
+            ),
+            inbreeding_mode=inbreeding_mode,
+            inbreeding_depth=inbreeding_depth,
+        )
+    )
+
+
+def simulate(params: SimulationParams) -> SimulationResult:
+    """Run the simulation ``params`` describes; :func:`run_simulation` documents the model and the result."""
+    N, G_ped, G_sim = params.N, params.span.G_ped, params.span.G_sim
+    vc = params.vc
+    rA, rC, rE = vc.rA, vc.rC, vc.rE
+
+    logger.info("Starting simulation: N=%d, G_ped=%d, seed=%d", N, G_ped, params.seed)
+    t0 = time.perf_counter()
+
+    rng = np.random.default_rng(params.seed)
+
+    # A and C are scalars; E may be per-generation. reproduce() needs these under both mating models.
+    E1_per_gen = vc.E_per_gen(1, G_sim)
+    E2_per_gen = vc.E_per_gen(2, G_sim)
+
+    sd_C1 = np.sqrt(vc.C[0])
+    sd_C2 = np.sqrt(vc.C[1])
+    sd_E1_per_gen = [np.sqrt(v) for v in E1_per_gen]
+    sd_E2_per_gen = [np.sqrt(v) for v in E2_per_gen]
+    sd_A1 = np.sqrt(vc.A[0])
+    sd_A2 = np.sqrt(vc.A[1])
+
+    # Standard-model AM plan: rho_w and the |rho_w| < 1 and 4x4 PSD checks are
+    # validated up front inside build(). Wright-Fisher has no assortment.
+    mate: StandardMating | WrightFisherMating
+    if params.mating_model == "standard":
+        assort1_per_gen, assort2_per_gen = params.assortment.schedule
+        plan = AssortmentPlan.build(
+            assort1_per_gen=list(assort1_per_gen),
+            assort2_per_gen=list(assort2_per_gen),
+            R_mf_user=params.assortment.mated_matrix,
+            rA=rA,
+            rC=rC,
+            rE=rE,
+            A1=vc.A[0],
+            A2=vc.A[1],
+            C1=vc.C[0],
+            C2=vc.C[1],
             E1_per_gen=E1_per_gen,
             E2_per_gen=E2_per_gen,
             G_sim=G_sim,
         )
-        mate = StandardMating(mating_lambda, p_mztwin, plan)
+        mate = StandardMating(params.mating_lambda, params.p_mztwin, plan)
     else:
         mate = WrightFisherMating(N)
 
@@ -250,7 +253,7 @@ def run_simulation(
     pheno = np.stack([a1, c1, e1, a2, c2, e2], axis=-1)  # column order: _A1 .. _E2
 
     # Simulate generations
-    burnin = G_sim - G_ped
+    burnin = params.span.burnin
 
     # Pre-allocate pedigree arrays (avoids frame concat per generation)
     total_individuals = N * G_ped
@@ -271,7 +274,7 @@ def run_simulation(
     if params.inbreeding.mode != "off":
         from simace.simulation.inbreeding import Inbreeding
 
-        inbreeding = Inbreeding(params.inbreeding, N, G_sim, mother_sorted=mating_model == "standard")
+        inbreeding = Inbreeding(params.inbreeding, N, G_sim, mother_sorted=params.mating_model == "standard")
         F_offspring = np.zeros(N)
 
     mating_iterations: list[MatingIteration] = []
@@ -445,10 +448,7 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
 
     init_logging(args)
 
-    c_transmission = CTransmission(
-        maternal=(args.Ctm_maternal1, args.Ctm_maternal2), paternal=(args.Ctm_paternal1, args.Ctm_paternal2)
-    )
-    result = run_simulation(
+    params = SimulationParams.create(
         seed=args.seed,
         N=args.N,
         G_ped=args.G_ped,
@@ -468,23 +468,20 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
         assort2=args.assort2,
         assort_matrix=args.assort_matrix,
         mating_model=args.mating_model,
-        Ctm_maternal1=args.Ctm_maternal1,
-        Ctm_paternal1=args.Ctm_paternal1,
-        Ctm_maternal2=args.Ctm_maternal2,
-        Ctm_paternal2=args.Ctm_paternal2,
+        c_transmission=CTransmission(
+            maternal=(args.Ctm_maternal1, args.Ctm_maternal2), paternal=(args.Ctm_paternal1, args.Ctm_paternal2)
+        ),
         inbreeding_mode=args.inbreeding_mode,
         inbreeding_depth=args.inbreeding_depth,
     )
+    result = simulate(params)
 
-    inbreeding = None
-    if args.inbreeding_mode != "off":
-        inbreeding = resolve(args.inbreeding_mode, args.inbreeding_depth, args.N, args.G_sim or args.G_ped)
     with publish(args.output_pedigree) as (tmp,):
         write_pedigree(
             result.pedigree,
             tmp,
-            c_transmission_clips=[clip.to_dict() for clip in result.clips] if c_transmission.active else None,
-            inbreeding=inbreeding,
+            c_transmission_clips=[clip.to_dict() for clip in result.clips] if params.c_transmission.active else None,
+            inbreeding=None if params.inbreeding.mode == "off" else params.inbreeding,
         )
     if args.output_mating is not None:
         write_mating_log([iteration.to_dict() for iteration in result.pairing], args.output_mating)

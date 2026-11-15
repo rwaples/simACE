@@ -267,7 +267,7 @@ def _check_recorded_pedigree(ped: pl.DataFrame, kw: dict) -> None:
     assert _is_bijection(mom, household[nf])
     # A household is one mother, so her transmitted C is shared and only a father's C
     # varies within it; see test_c_transmission.py.
-    if not any(CTransmission.from_params(kw).paternal):
+    if not any(CTransmission.from_mapping(kw).paternal):
         for c in ("C1", "C2"):
             assert _constant_within(col[c], household), c
 
@@ -457,7 +457,7 @@ def assortative_kwargs(draw, mating_model: str) -> dict:
             norm = max(1.0, float(np.hypot(b_m, b_f)))
             kw |= {f"Ctm_maternal{t}": b_m / norm, f"Ctm_paternal{t}": b_f / norm}
         try:
-            CTransmission.from_params(kw).validate(kw["C1"], kw["C2"], kw["rC"])
+            CTransmission.from_mapping(kw).validate(kw["C1"], kw["C2"], kw["rC"])
         except ValueError:
             assume(False)
     return kw
@@ -487,6 +487,6 @@ def test_run_simulation_structural_integrity_under_assortment_and_c_transmission
     if isinstance(ped, _VerifiedExtinction):
         event(f"single-sex extinction: {ped.args}")
         return
-    ct = CTransmission.from_params(kw)
+    ct = CTransmission.from_mapping(kw)
     event("paternal C transmitted" if any(ct.paternal) else "maternal C only" if ct.active else "fresh C")
     _check_recorded_pedigree(ped, kw)

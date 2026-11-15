@@ -6,7 +6,6 @@ import pytest
 
 from simace.analysis.quality.assortative_mating import assortment_schedule, schedule_span
 from simace.config import resolve_defaults, resolve_scenarios
-from simace.simulation.assortment import assortment_schedule as simulated_schedule
 from simace.simulation.params import CTransmission, SimulationParams
 
 CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
@@ -40,11 +39,10 @@ def _simulator_schedule(params: dict) -> tuple[list[float], list[float]]:
     """The schedule ``run_simulation`` mates on, from the inputs ``SimulationParams`` normalizes."""
     sim = SimulationParams.create(
         **{k: params.get(k) for k in _CREATE_KEYS if params.get(k) is not None},
-        c_transmission=CTransmission.from_params(params),
+        c_transmission=CTransmission.from_mapping(params),
     )
-    return simulated_schedule(
-        sim.assort1, sim.assort2, G_sim=sim.G_sim, assort_matrix=sim.R_mf, mating_model=sim.mating_model
-    )
+    schedule = sim.assortment.schedule
+    return list(schedule[0]), list(schedule[1])
 
 
 def _any_nonzero(value) -> bool:

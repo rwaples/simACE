@@ -78,6 +78,6 @@ class TestCTransmissionValidate:
         with pytest.raises(ValueError, match=r"infeasible: .*eigenvalue -0\.005"):
             CTransmission(maternal=(0.1, 0.0)).validate(1.0, 1.0, 1.0)
 
-    def test_from_params_defaults_missing_keys_to_zero(self):
-        assert CTransmission.from_params({"Ctm_paternal2": 0.25}) == CTransmission(paternal=(0.0, 0.25))
-        assert not CTransmission.from_params({}).active
+    def test_from_mapping_defaults_missing_keys_to_zero(self):
+        assert CTransmission.from_mapping({"Ctm_paternal2": 0.25}) == CTransmission(paternal=(0.0, 0.25))
+        assert not CTransmission.from_mapping({}).active

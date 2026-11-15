@@ -18,8 +18,6 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from simace.simulation.params import resolve_per_gen_param
-
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -56,33 +54,6 @@ def parent_ce_gen(i: int) -> int:
     runtime schedule cannot drift apart.
     """
     return max(0, i - 1)
-
-
-def assortment_schedule(
-    assort1: float | dict[int, float],
-    assort2: float | dict[int, float],
-    *,
-    G_sim: int,
-    assort_matrix: np.ndarray | list[list[float]] | None = None,
-    mating_model: str = "standard",
-) -> tuple[list[float], list[float]]:
-    """The ``assort1`` and ``assort2`` the simulator mates on in each of the ``G_sim`` mating iterations.
-
-    A set ``assort_matrix`` replaces both by its diagonal. The Wright-Fisher
-    mating model pairs parents at random whatever assortment it inherits, so
-    both are zero there. ``run_simulation`` and the analysis both read the
-    schedule from here.
-    """
-    if mating_model != "standard":
-        return [0.0] * G_sim, [0.0] * G_sim
-    if assort_matrix is not None:
-        matrix = np.asarray(assort_matrix, dtype=np.float64)
-        return [float(matrix[0, 0])] * G_sim, [float(matrix[1, 1])] * G_sim
-
-    return (
-        resolve_per_gen_param(assort1, G_sim, name="assort1", allow_negative=True),
-        resolve_per_gen_param(assort2, G_sim, name="assort2", allow_negative=True),
-    )
 
 
 def _cross_am_matrix(assort1: float, assort2: float, rho_w: float) -> np.ndarray:
@@ -127,7 +98,7 @@ class AssortmentPlan:
         E2_per_gen: list[float],
         G_sim: int,
     ) -> AssortmentPlan:
-        """Validate rho_w + PSD over the mating iterations of an :func:`assortment_schedule`.
+        """Validate rho_w + PSD over the mating iterations of an :attr:`~simace.simulation.params.Assortment.schedule`.
 
         Args:
             assort1_per_gen: Trait-1 mate correlation per mating iteration.

@@ -18,6 +18,7 @@ import simace.simulation.simulate as simulate_mod
 from simace.cli.layout import Layout
 from simace.cli.stages import REP_PARAM_KEYS, STAGES, ResolvedRep
 from simace.cli.status import resolve_all
+from simace.simulation.params import SimulationParams
 from simace.simulation.records import SimulationResult
 
 REPO_CONFIG = Path(__file__).resolve().parents[2] / "config"
@@ -71,10 +72,12 @@ SCENARIOS = _representatives(ALL)
 
 class _Recorder:
     def __init__(self, result=None) -> None:
+        self.args: tuple = ()
         self.kwargs: dict = {}
         self.result = result
 
     def __call__(self, *args, **kwargs):
+        self.args = args
         self.kwargs = kwargs
         return self.result
 
@@ -102,12 +105,11 @@ def _subset(recorded: dict, keys: list[str]) -> dict:
 def test_simulate_argv_round_trips(monkeypatch, rep_and_layout) -> None:
     rep, layout = rep_and_layout
     recorder = _Recorder(result=SimulationResult(pl.DataFrame(), (), ()))
-    monkeypatch.setattr(simulate_mod, "run_simulation", recorder)
+    monkeypatch.setattr(simulate_mod, "simulate", recorder)
     monkeypatch.setattr(simulate_mod, "write_pedigree", _touch)
     simulate_mod.cli(_argv("simulate", rep, layout))
 
-    assert recorder.kwargs["seed"] == rep.seed
-    assert _subset(recorder.kwargs, _SIMULATE_KEYS) == {key: rep.params[key] for key in _SIMULATE_KEYS}
+    assert recorder.args == (SimulationParams.from_mapping({**rep.params, "seed": rep.seed}),)
 
 
 @pytest.mark.parametrize("rep_and_layout", SCENARIOS, ids=[n for n, _ in SCENARIOS], indirect=True)

@@ -8,10 +8,9 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from simace.core.numerics import finite_or_none
-from simace.simulation import assortment
 from simace.simulation.assortment import parent_ce_gen
 from simace.simulation.mate_correlation import expected_mate_corr_matrix
-from simace.simulation.params import resolve_per_gen_param
+from simace.simulation.params import Assortment, Span, resolve_per_gen_param
 
 from ._common import _info
 
@@ -71,14 +70,15 @@ def _mated_matrix(params: Mapping[str, Any]) -> np.ndarray | None:
 
 def assortment_schedule(params: Mapping[str, Any]) -> tuple[list[float], list[float]]:
     """The ``assort1`` and ``assort2`` the simulator mates on in each of the ``G_sim`` mating iterations of ``params``."""
-    G_sim, _ = schedule_span(params)
-    return assortment.assortment_schedule(
+    G_sim, burnin = schedule_span(params)
+    schedule = Assortment.create(
+        Span(G_sim - burnin, G_sim),
         params.get("assort1", 0.0),
         params.get("assort2", 0.0),
-        G_sim=G_sim,
-        assort_matrix=params.get("assort_matrix"),
-        mating_model=params.get("mating_model", "standard"),
-    )
+        params.get("assort_matrix"),
+        params.get("mating_model", "standard"),
+    ).schedule
+    return list(schedule[0]), list(schedule[1])
 
 
 def recorded_matings(params: dict[str, Any]) -> list[RecordedMating]:
