@@ -40,6 +40,36 @@ from the old files. `quality_checks` keeps only quality checks: checks whose
 failure means the rep is wrong. Analyze's check families move to
 `simace/analysis/quality/`.
 
+**Status note (2026-11-15).** #89 types both ends of the report. The
+`report.yaml` and `plot_payload.yaml` contract below is unchanged, byte for
+byte; what changes is how code reaches it:
+
+- **Producer.** The Stats phase returns a `SampleStats`
+  (`simace/analysis/sample_stats.py`) already in scope shape: an
+  `AnalysisSampleStats` for `observed.analysis_sample`, an
+  `AnalysisPedigreeStats` for `observed.analysis_pedigree`, the two scope
+  sizes, and the observed-scale heritability estimators. Its fields are the
+  report keys in report order, so the six intermediate stats groups and the
+  re-bucketing between them are gone. Each quality-check family returns a
+  `FamilyResult`: the checks it asserts, as `QualityCheck` records, and what
+  it measures, as a typed measurements record. `quality_checks` rows come
+  from the checks; `truth` and `estimators` from the measurements. A value
+  with no closed-form verdict is a measurement, never an informational check.
+- **No `df_ped is None` mode.** The Stats phase requires the analysis
+  pedigree. The `simace stats` debug command, the one caller that omitted
+  it, is removed, and with it the retained debug CLIs this ADR's first
+  paragraph lists (the validate one went with ADR 0028).
+- **Plotting boundary.** The plotting code parses `report.yaml` and
+  `plot_payload.yaml` into a typed `ReportView`
+  (`simace/plotting/stats_report.py`) that carries the producer's
+  `SampleStats` records, replacing the flat-dict adapter that kept plot
+  helpers unchanged. Absence is declared in the types: a field is optional
+  only when a correct run can omit it (the censoring tables without
+  per-generation censoring windows, and dense arrays when no payload is
+  read), and its figure draws a placeholder. Every other field is required.
+  `partition_dense` drops empty tables, so an always-computed table that is
+  absent reads back empty, not missing.
+
 ## Context
 
 The merged `report.yaml` had its shape dictated by the producer seams — a `validation` group beside the six stats

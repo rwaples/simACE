@@ -74,13 +74,14 @@ simACE/
 │   │   └── runner.py                     # run_ascertainment: dropout, case-weighted N_sample, pedigree closure, CLI (per ADR 0001)
 │   ├── analysis/
 │   │   ├── analyze.py                    # Combined Analyze stage: produce the curated report.yaml
-│   │   ├── report.py                     # Assemble the curated report from validation + stats outputs
+│   │   ├── report.py                     # Assemble the curated report from the quality report + SampleStats
+│   │   ├── sample_stats.py               # SampleStats: the analysis sample's and pedigree's stats, in report shape
 │   │   ├── report_schema.py              # Schema constants and contract checks for the report
 │   │   ├── gather.py                     # Gather per-replicate report summaries into report_summary.tsv
 │   │   ├── mate_correlation.py           # Mate correlations of pedigree columns (pg-phenotype)
 │   │   ├── midparent.py                  # Midparent-offspring regressions shared by stats, validation, and plots
 │   │   ├── stats/                        # Per-concern stats package
-│   │   │   ├── runner.py                 # Stats orchestrator
+│   │   │   ├── runner.py                 # build_stats_report: the stats, as a SampleStats
 │   │   │   ├── moments.py                # Relationship moments of the analysis sample (one engine pass, ADR 0022)
 │   │   │   ├── correlations.py           # Pairwise correlations, parent-offspring regressions, h² estimators
 │   │   │   ├── tetrachoric.py            # Tetrachoric correlation primitives
@@ -92,7 +93,8 @@ simACE/
 │   │   │   ├── pedigree_estimates.py     # One replicate's pedigree estimates for cross-scenario comparisons
 │   │   │   └── sampling.py               # Downsampling for scatter/histogram plot inputs
 │   │   ├── quality/                      # Analyze's quality checks (one module per check family; ADR 0028)
-│   │   │   ├── runner.py                 # build_quality_report: every family on the recorded pedigree
+│   │   │   ├── runner.py                 # build_quality_report: every family's result, as a QualityReport
+│   │   │   ├── check.py                  # QualityCheck, FamilyResult and the shared measurement records
 │   │   │   ├── structural.py, statistical.py, c_transmission.py
 │   │   │   ├── heritability.py, twins.py, half_sibs.py, consanguinity.py
 │   │   │   ├── assortative_mating.py, am_equilibrium.py, am_relatedness.py
@@ -122,7 +124,7 @@ simACE/
 │       ├── render_atlas.py               # Format-dispatching seam for atlas rendering
 │       ├── plot_atlas_html.py            # Single-page HTML atlas (the default artifact)
 │       ├── plot_atlas.py                 # Multi-page PDF atlas (on demand)
-│       ├── stats_report.py               # Adapter from the curated report to the flat plotting view
+│       ├── stats_report.py               # Parse report.yaml + plot_payload.yaml into the typed ReportView
 │       ├── scenario_atlas.py             # `simace atlas`: the scenario atlas
 │       ├── plot_pipeline.py              # Pipeline stage diagram
 │       └── plot_table1.py                # Epidemiological Table 1

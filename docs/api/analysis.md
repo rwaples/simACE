@@ -9,6 +9,10 @@
 
 ::: simace.analysis.quality
 
+### quality.check
+
+::: simace.analysis.quality.check
+
 ## validate
 
 ::: simace.analysis.validate
@@ -64,6 +68,10 @@
 ### stats.runner
 
 ::: simace.analysis.stats.runner
+
+### sample_stats
+
+::: simace.analysis.sample_stats
 
 ## gather
 
