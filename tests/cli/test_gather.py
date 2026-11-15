@@ -13,7 +13,7 @@ import simace.plotting.plot_validation as plot_validation_mod
 from simace.cli.gather import cli
 from simace.cli.layout import Layout
 from simace.cli.manifest import write_manifest
-from simace.cli.stages import REP_OUTPUTS, ResolvedRep
+from simace.cli.stages import REP_OUTPUTS, scenario_reps
 from simace.cli.status import expected_manifest, load_scenario, rep_outputs
 from tests.analysis.test_gather_cli import _MINIMAL_REPORT
 
@@ -78,9 +78,8 @@ def _tiny_folder(tmp_path: Path) -> tuple[Path, Layout]:
     tiny = {"N": 300, "G_ped": 3, "G_sim": 3, "G_pheno": 2, "replicates": 2, "seed": 100}
     (config / "fold.yaml").write_text(yaml.safe_dump({"tiny": tiny}))
     layout = Layout(root=tmp_path / "results")
-    params = load_scenario(config, "tiny")
-    for r in (1, 2):
-        rep = ResolvedRep("fold", "tiny", r, params)
+    for rep in scenario_reps(load_scenario(config, "tiny")):
+        r = rep.rep
         for artifact in REP_OUTPUTS:
             path = layout.rep("fold", "tiny", r, artifact)
             path.parent.mkdir(parents=True, exist_ok=True)

@@ -6,8 +6,8 @@ the scenario atlas read it, and so does fitACE, so every key written here is
 part of the fitACE compatibility contract: keys may be added, never renamed
 or removed.
 
-``E1`` / ``E2`` are guaranteed non-null by the config-load validator
-(:func:`simace.config._validate_pedigree_config`). ``assort_matrix`` is
+``E1`` / ``E2`` are guaranteed non-null by config load
+(:meth:`simace.config.Scenario.parse`). ``assort_matrix`` is
 included only when not ``None``.
 """
 

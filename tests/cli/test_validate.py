@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
@@ -15,11 +16,14 @@ from simace.analysis.validate.verdict import SCHEMA as VERDICT_SCHEMA
 from simace.analysis.validate.verdict import Entry, Insufficient, MeanZ
 from simace.cli.layout import Layout, RepArtifact
 from simace.cli.run import cli as run_cli
-from simace.cli.stages import ResolvedRep
+from simace.cli.stages import scenario_reps
 from simace.cli.status import load_scenario
 from simace.cli.validate import cli as validate_cli
 from simace.core.cohort import read_cohort, read_pedigree
 from simace.phenotype.runner import run_phenotype
+
+if TYPE_CHECKING:
+    from simace.cli.stages import ResolvedRep
 
 REPO_CONFIG = Path(__file__).resolve().parents[2] / "config"
 TINY = {"N": 300, "G_ped": 3, "G_sim": 3, "G_pheno": 2, "replicates": 2, "seed": 100}
@@ -40,8 +44,7 @@ def project(tmp_path_factory) -> tuple[Path, list[str], Layout]:
 
 
 def _rep(cfg: Path, rep: int) -> ResolvedRep:
-    params = load_scenario(cfg, "tiny")
-    return ResolvedRep(params["folder"], "tiny", rep, params)
+    return scenario_reps(load_scenario(cfg, "tiny"))[rep - 1]
 
 
 def test_writes_validation_yaml_for_each_complete_rep(project, capsys) -> None:

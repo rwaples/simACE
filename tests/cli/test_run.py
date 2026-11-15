@@ -75,8 +75,8 @@ def _run(config_dir: Path, roots: list[str], *argv: str) -> int:
 
 
 def _rep(config_dir: Path, rep: int, scenario: str = "tiny") -> ResolvedRep:
-    params = load_scenario(config_dir, scenario)
-    return ResolvedRep(params["folder"], scenario, rep, params)
+    configured = load_scenario(config_dir, scenario)
+    return ResolvedRep(configured.folder, scenario, rep, configured.flat)
 
 
 @pytest.fixture
@@ -1136,7 +1136,7 @@ def test_run_summary_and_ls_report_the_plot_state(
 
 def test_resolving_config_does_not_import_the_stage_stack():
     probe = (
-        "import sys; from pathlib import Path; import simace.cli.run as r; r.resolve_all(Path(sys.argv[1])); "
+        "import sys; from pathlib import Path; import simace.cli.run as r; r.load_scenarios(Path(sys.argv[1])); "
         "print(' '.join(m for m in ('numba', 'polars', 'scipy', 'pedigree_graph', 'simace.phenotype.runner') "
         "if m in sys.modules))"
     )

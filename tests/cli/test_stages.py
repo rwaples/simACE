@@ -17,7 +17,7 @@ import simace.cli.cohort_stage as cohort_mod
 import simace.simulation.simulate as simulate_mod
 from simace.cli.layout import Layout
 from simace.cli.stages import REP_PARAM_KEYS, STAGES, ResolvedRep
-from simace.cli.status import resolve_all
+from simace.config import load_scenarios
 from simace.simulation.params import SimulationParams
 from simace.simulation.records import SimulationResult
 
@@ -66,7 +66,7 @@ def _representatives(scenarios: list[tuple[str, dict]]) -> list[tuple[str, dict]
     return out
 
 
-ALL = sorted(resolve_all(REPO_CONFIG).items())
+ALL = sorted((name, scenario.flat) for name, scenario in load_scenarios(REPO_CONFIG).items())
 SCENARIOS = _representatives(ALL)
 
 

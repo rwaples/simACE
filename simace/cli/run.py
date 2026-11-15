@@ -55,9 +55,9 @@ from simace.cli.stages import (
     REP_OUTPUTS,
     RETIRED_OUTPUTS,
     STAGES,
-    ResolvedRep,
     atlas_argv,
     plot_argv,
+    scenario_reps,
 )
 from simace.cli.status import (
     ScenarioError,
@@ -65,12 +65,11 @@ from simace.cli.status import (
     expected_manifest,
     rep_outputs,
     rep_ranges,
-    resolve_all,
     scenario_plots_status,
     stage_names,
     status_on_disk,
 )
-from simace.config import seed_collisions
+from simace.config import load_scenarios, seed_collisions
 from simace.core.publish import TMP_SUFFIX, publish
 from simace.simulation.inbreeding_plan import InbreedingRefused, plan_for
 
@@ -79,6 +78,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from simace.cli.layout import Layout
+    from simace.cli.stages import ResolvedRep
+    from simace.config import Scenario
 
 
 class ScenarioBusy(Exception):
@@ -308,7 +309,7 @@ class ScenarioRun:
     requested: list[ResolvedRep]
 
 
-def expand_targets(targets: list[str], scenarios: dict[str, dict[str, Any]]) -> list[str]:
+def expand_targets(targets: list[str], scenarios: Mapping[str, Scenario]) -> list[str]:
     """Return the scenario names ``targets`` name, in order, once each.
 
     A target is a scenario name first, else a folder name (every scenario
@@ -322,23 +323,24 @@ def expand_targets(targets: list[str], scenarios: dict[str, dict[str, Any]]) -> 
         if target in scenarios:
             names.append(target)
             continue
-        in_folder = [name for name, params in scenarios.items() if params["folder"] == target]
+        in_folder = [name for name, scenario in scenarios.items() if scenario.folder == target]
         if not in_folder:
             known = "\n  ".join(sorted(scenarios))
-            folders = ", ".join(sorted({params["folder"] for params in scenarios.values()}))
+            folders = ", ".join(sorted({scenario.folder for scenario in scenarios.values()}))
             raise ScenarioError(f"unknown target {target!r}; folders: {folders}\nscenarios:\n  {known}")
         names += in_folder
     return list(dict.fromkeys(names))
 
 
-def _plan(name: str, params: dict[str, Any], reps: list[int] | None) -> ScenarioRun:
-    n_reps = int(params["replicates"])
+def _plan(scenario: Scenario, reps: list[int] | None) -> ScenarioRun:
+    n_reps = scenario.replicates
     if reps is not None:
         bad = sorted({r for r in reps if not 1 <= r <= n_reps} | {r for r in reps if reps.count(r) > 1})
         if bad:
             raise ScenarioError(f"--rep values must be distinct and in 1..{n_reps}; got {bad}")
-    all_reps = [ResolvedRep(params["folder"], name, r, params) for r in range(1, n_reps + 1)]
-    return ScenarioRun(name, params["folder"], all_reps, all_reps if reps is None else [all_reps[r - 1] for r in reps])
+    all_reps = scenario_reps(scenario)
+    selected = all_reps if reps is None else [all_reps[r - 1] for r in reps]
+    return ScenarioRun(scenario.name, scenario.folder, all_reps, selected)
 
 
 def plan_runs(command_name: str, config_dir: Path, targets: list[str], reps: list[int] | None) -> list[ScenarioRun]:
@@ -347,11 +349,11 @@ def plan_runs(command_name: str, config_dir: Path, targets: list[str], reps: lis
     Shared by ``simace run`` and ``simace validate``; *command_name* prefixes the messages.
     """
     try:
-        scenarios = resolve_all(config_dir)
+        scenarios = load_scenarios(config_dir)
         names = expand_targets(targets, scenarios)
         if reps is not None and len(names) != 1:
             raise ScenarioError(f"--rep needs exactly one scenario; the targets name {len(names)}")
-        runs = [_plan(name, scenarios[name], reps) for name in names]
+        runs = [_plan(scenarios[name], reps) for name in names]
     except ScenarioError as exc:
         print(f"simace {command_name}: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc

@@ -7,12 +7,13 @@ __all__ = ["cli"]
 import argparse
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from simace.cli.layout import RepArtifact, add_root_args, resolve_roots
 
 if TYPE_CHECKING:
     from simace.cli.layout import Layout
+    from simace.config import Scenario
 
 
 def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
@@ -56,11 +57,11 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     init_logging(args)
     config_dir, layout = resolve_roots(args)
 
-    scenarios: dict[str, dict[str, Any]] = {}
+    scenarios: dict[str, Scenario] = {}
     if (config_dir / "_default.yaml").is_file():
-        from simace.cli.status import resolve_all
+        from simace.config import load_scenarios
 
-        scenarios = resolve_all(config_dir)
+        scenarios = load_scenarios(config_dir)
     elif args.config_dir is not None or not args.all:
         print(
             f"simace gather: no config directory at {config_dir} (no _default.yaml); --all gathers by disk",
@@ -100,13 +101,13 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     )
 
 
-def _configured_reports(folder: str, scenarios: dict[str, dict[str, Any]], layout: Layout) -> list[str]:
+def _configured_reports(folder: str, scenarios: dict[str, Scenario], layout: Layout) -> list[str]:
     """Return the report paths of the complete reps of ``folder``'s configured scenarios, naming every other rep."""
     from simace.cli.manifest import RepState
-    from simace.cli.stages import ResolvedRep
+    from simace.cli.stages import scenario_reps
     from simace.cli.status import status_on_disk
 
-    configured = {name: params for name, params in scenarios.items() if params["folder"] == folder}
+    configured = {name: scenario for name, scenario in scenarios.items() if scenario.folder == folder}
     if not configured:
         print(
             f"simace gather: no configured scenario has folder {folder!r}; --all gathers what is on disk",
@@ -115,8 +116,7 @@ def _configured_reports(folder: str, scenarios: dict[str, dict[str, Any]], layou
         raise SystemExit(2)
     reports: list[str] = []
     for name in sorted(configured):
-        params = configured[name]
-        reps = [ResolvedRep(folder, name, r, params) for r in range(1, int(params["replicates"]) + 1)]
+        reps = scenario_reps(configured[name])
         included = 0
         for rep in reps:
             status = status_on_disk(rep, layout)
@@ -143,7 +143,7 @@ def _configured_reports(folder: str, scenarios: dict[str, dict[str, Any]], layou
     return reports
 
 
-def _reports_on_disk(folder: str, scenarios: dict[str, dict[str, Any]], layout: Layout) -> list[str]:
+def _reports_on_disk(folder: str, scenarios: dict[str, Scenario], layout: Layout) -> list[str]:
     """Return the report paths of every finished rep directory under ``folder``, whatever the config lists."""
     reports: list[str] = []
     for report in sorted((layout.root / folder).glob(f"*/rep*/{RepArtifact.REPORT}")):
@@ -158,18 +158,18 @@ def _reports_on_disk(folder: str, scenarios: dict[str, dict[str, Any]], layout: 
     return reports
 
 
-def _not_complete(rep_dir: Path, scenarios: dict[str, dict[str, Any]], layout: Layout) -> str | None:
+def _not_complete(rep_dir: Path, scenarios: dict[str, Scenario], layout: Layout) -> str | None:
     """Return why ``rep_dir`` is left out of the summary, or None when it counts."""
     if not (rep_dir / RepArtifact.RUN_MANIFEST).exists():
         return f"no {RepArtifact.RUN_MANIFEST}; the rep did not finish"
     scenario, rep = rep_dir.parent.name, int(rep_dir.name.removeprefix("rep"))
-    params = scenarios.get(scenario)
-    if params is None or params["folder"] != rep_dir.parent.parent.name:
+    configured = scenarios.get(scenario)
+    if configured is None or configured.folder != rep_dir.parent.parent.name:
         return None
 
     from simace.cli.manifest import RepState
     from simace.cli.stages import ResolvedRep
     from simace.cli.status import status_on_disk
 
-    status = status_on_disk(ResolvedRep(params["folder"], scenario, rep, params), layout)
+    status = status_on_disk(ResolvedRep(configured.folder, scenario, rep, configured.flat), layout)
     return None if status.state is RepState.COMPLETE else f"{status.state}: {status.describe()}"

@@ -49,13 +49,16 @@ import polars as pl
 from simace.analysis.validate.inheritance import linked_household_share, parent_rows
 from simace.cli.layout import RepArtifact, add_root_args, resolve_roots
 from simace.cli.manifest import RepState
-from simace.cli.stages import ResolvedRep
-from simace.cli.status import resolve_all, status_on_disk
+from simace.cli.stages import scenario_reps
+from simace.cli.status import status_on_disk
+from simace.config import load_scenarios
 from simace.core.cohort import read_pedigree
 from simace.core.yaml_io import load_yaml
 
 if TYPE_CHECKING:
     from simace.cli.layout import Layout
+    from simace.cli.stages import ResolvedRep
+    from simace.config import Scenario
 
 #: One thread per worker, set before a spawned worker imports polars or pg-phenotype.
 _THREAD_VARS = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "RAYON_NUM_THREADS", "POLARS_MAX_THREADS")
@@ -146,11 +149,10 @@ def rep_cells(key: tuple[str, str, int], pedigree_path: Path, report_path: Path)
     return rows
 
 
-def _complete_reps(folder: str, scenario: str, params: dict[str, Any], layout: Layout) -> list[ResolvedRep]:
+def _complete_reps(scenario: Scenario, layout: Layout) -> list[ResolvedRep]:
     """The scenario's reps that are complete under the current config, naming the others."""
     reps = []
-    for r in range(1, int(params["replicates"]) + 1):
-        rep = ResolvedRep(folder, scenario, r, params)
+    for rep in scenario_reps(scenario):
         state = status_on_disk(rep, layout).state
         if state is RepState.COMPLETE:
             reps.append(rep)
@@ -171,13 +173,13 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     config_dir, layout = resolve_roots(args)
 
-    configured = resolve_all(config_dir)
+    configured = load_scenarios(config_dir)
     jobs = [
         ((folder, name, rep.rep), rep.path(layout, RepArtifact.PEDIGREE), rep.path(layout, RepArtifact.REPORT))
         for folder in args.folders
-        for name, p in sorted(configured.items())
-        if p["folder"] == folder
-        for rep in _complete_reps(folder, name, p, layout)
+        for name, s in sorted(configured.items())
+        if s.folder == folder
+        for rep in _complete_reps(s, layout)
     ]
     for var in _THREAD_VARS:
         os.environ.setdefault(var, "1")

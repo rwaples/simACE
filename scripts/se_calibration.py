@@ -27,14 +27,16 @@ import polars as pl
 
 from simace.cli.layout import RepArtifact, add_root_args, resolve_roots
 from simace.cli.manifest import RepState
-from simace.cli.stages import ResolvedRep
-from simace.cli.status import resolve_all, status_on_disk
+from simace.cli.stages import scenario_reps
+from simace.cli.status import status_on_disk
+from simace.config import load_scenarios
 from simace.core.yaml_io import load_yaml
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from simace.cli.layout import Layout
+    from simace.config import Scenario
 
 _SUMMARY_SECTIONS = ("tetrachoric", "cross_trait.cross_person", "cross_trait.same_person")
 
@@ -54,11 +56,10 @@ def _entries(sample: dict[str, Any]) -> Iterator[tuple[str, str, str, dict[str, 
     yield "cross_trait.same_person", "trait1_x_trait2", "self", cross["same_person"]
 
 
-def _complete_reports(folder: str, scenario: str, params: dict[str, Any], layout: Layout) -> list[Path]:
+def _complete_reports(scenario: Scenario, layout: Layout) -> list[Path]:
     """Report paths of the scenario's reps that are complete under the current config, naming the others."""
     reports = []
-    for r in range(1, int(params["replicates"]) + 1):
-        rep = ResolvedRep(folder, scenario, r, params)
+    for rep in scenario_reps(scenario):
         status = status_on_disk(rep, layout)
         if status.state is RepState.COMPLETE:
             reports.append(rep.path(layout, RepArtifact.REPORT))
@@ -108,8 +109,8 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     config_dir, layout = resolve_roots(args)
 
-    configured = {name: p for name, p in resolve_all(config_dir).items() if p["folder"] == args.folder}
-    frames = [collect(name, _complete_reports(args.folder, name, p, layout)) for name, p in sorted(configured.items())]
+    configured = {name: s for name, s in load_scenarios(config_dir).items() if s.folder == args.folder}
+    frames = [collect(name, _complete_reports(s, layout)) for name, s in sorted(configured.items())]
     table = pl.concat([f for f in frames if f.height]).sort("scenario", "section", "trait", "category")
     output = args.output or layout.root / args.folder / "se_calibration.tsv"
     table.write_csv(output, separator="\t", float_precision=4)

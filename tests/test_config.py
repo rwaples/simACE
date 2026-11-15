@@ -14,10 +14,9 @@ from simace.config import (
     _HIERARCHICAL_TO_FLAT,
     _SIM_FLAT_GLOBALS,
     KNOWN_SIM_KEYS,
+    Scenario,
     _coerce_sim_types,
     _is_zero_assort,
-    _validate_pedigree_config,
-    _validate_phenotype_config,
     flatten_hierarchical,
     get_all_folders,
     get_folder,
@@ -30,6 +29,13 @@ from simace.simulation.params import am_transmitted_share
 
 REPO_ROOT = Path(__file__).parent.parent
 CONFIG_DIR = REPO_ROOT / "config"
+_REAL_DEFAULTS = resolve_defaults(CONFIG_DIR)
+
+
+def _validate(config: dict) -> None:
+    """Parse each scenario of ``{"defaults", "scenarios"}``, its defaults over config/_default.yaml's."""
+    for name, params in config["scenarios"].items():
+        Scenario.parse(name, {**_REAL_DEFAULTS, **config["defaults"]}, params)
 
 
 class TestKnownSimKeys:
@@ -115,6 +121,7 @@ class TestResolveScenariosEdgeCases:
     @staticmethod
     def _flat_defaults() -> dict:
         return {
+            **_REAL_DEFAULTS,
             "seed": 1,
             "replicates": 1,
             "folder": "base",
@@ -179,39 +186,33 @@ class TestPhenotypeConfigValidation:
 
     def test_invalid_model_rejected(self):
         with pytest.raises(ValueError, match="not valid"):
-            _validate_phenotype_config(self._wrap({"phenotype_model1": "bogus"}))
+            _validate(self._wrap({"phenotype_model1": "bogus"}))
 
     def test_frailty_missing_distribution_rejected(self):
         with pytest.raises(ValueError, match="must include 'distribution'"):
-            _validate_phenotype_config(self._wrap({"phenotype_model1": "frailty", "phenotype_params1": {}}))
+            _validate(self._wrap({"phenotype_model1": "frailty", "phenotype_params1": {}}))
 
     def test_frailty_invalid_distribution_rejected(self):
         with pytest.raises(ValueError, match="unknown frailty distribution 'bad'"):
-            _validate_phenotype_config(
-                self._wrap({"phenotype_model1": "frailty", "phenotype_params1": {"distribution": "bad"}})
-            )
+            _validate(self._wrap({"phenotype_model1": "frailty", "phenotype_params1": {"distribution": "bad"}}))
 
     def test_adult_missing_method_rejected(self):
         with pytest.raises(ValueError, match="must include 'method'"):
-            _validate_phenotype_config(
-                self._wrap({"phenotype_model1": "adult", "phenotype_params1": {"prevalence": 0.1}})
-            )
+            _validate(self._wrap({"phenotype_model1": "adult", "phenotype_params1": {"prevalence": 0.1}}))
 
     def test_adult_invalid_method_rejected(self):
         with pytest.raises(ValueError, match="unknown adult method 'bad'"):
-            _validate_phenotype_config(
+            _validate(
                 self._wrap({"phenotype_model1": "adult", "phenotype_params1": {"method": "bad", "prevalence": 0.1}})
             )
 
     def test_simple_ltm_missing_onset_rejected(self):
         with pytest.raises(ValueError, match="must include 'onset' key"):
-            _validate_phenotype_config(
-                self._wrap({"phenotype_model1": "simple_ltm", "phenotype_params1": {"prevalence": 0.1}})
-            )
+            _validate(self._wrap({"phenotype_model1": "simple_ltm", "phenotype_params1": {"prevalence": 0.1}}))
 
     def test_simple_ltm_invalid_onset_kind_rejected(self):
         with pytest.raises(ValueError, match=r"onset\.kind must be one of .*got 'bad'"):
-            _validate_phenotype_config(
+            _validate(
                 self._wrap(
                     {
                         "phenotype_model1": "simple_ltm",
@@ -221,7 +222,7 @@ class TestPhenotypeConfigValidation:
             )
 
     def test_simple_ltm_valid_onset_passes(self):
-        _validate_phenotype_config(
+        _validate(
             self._wrap(
                 {
                     "phenotype_model1": "simple_ltm",
@@ -232,20 +233,16 @@ class TestPhenotypeConfigValidation:
 
     def test_threshold_model_missing_prevalence_rejected(self):
         with pytest.raises(ValueError, match="must include 'prevalence'"):
-            _validate_phenotype_config(
-                self._wrap({"phenotype_model1": "adult", "phenotype_params1": {"method": "ltm"}})
-            )
+            _validate(self._wrap({"phenotype_model1": "adult", "phenotype_params1": {"method": "ltm"}}))
 
     def test_hazard_model_with_prevalence_rejected(self):
         with pytest.raises(ValueError, match=r"unknown key\(s\) \['prevalence'\]"):
-            _validate_phenotype_config(
-                self._wrap({"phenotype_model1": "first_passage", "phenotype_params1": {"prevalence": 0.1}})
-            )
+            _validate(self._wrap({"phenotype_model1": "first_passage", "phenotype_params1": {"prevalence": 0.1}}))
 
     def test_misspelled_key_rejected(self):
         pp = {"distribution": "weibull", "scale": 316.228, "rho": 2.0, "standardise_hazard": "none"}
         with pytest.raises(ValueError, match=r"Scenario 'sc'.*unknown key\(s\) \['standardise_hazard'\]"):
-            _validate_phenotype_config(self._wrap({"phenotype_model1": "frailty", "phenotype_params1": pp}))
+            _validate(self._wrap({"phenotype_model1": "frailty", "phenotype_params1": pp}))
 
 
 class TestAccessors:
@@ -311,7 +308,7 @@ class TestIsZeroAssort:
 
 
 class TestMatingModelValidation:
-    """Strict-WF override validation in ``_validate_pedigree_config``.
+    """Strict-WF override validation in ``Scenario.parse``.
 
     Operates on scenario-level overrides only — defaults from `_default.yaml`
     that the scenario doesn't explicitly touch are silently ignored at runtime.
@@ -330,26 +327,26 @@ class TestMatingModelValidation:
         }
 
     def test_default_standard_passes(self):
-        _validate_pedigree_config(self._wrap({}))
+        _validate(self._wrap({}))
 
     def test_explicit_wright_fisher_passes(self):
-        _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher"}))
+        _validate(self._wrap({"mating_model": "wright_fisher"}))
 
     def test_invalid_mating_model_raises(self):
         with pytest.raises(ValueError, match="mating_model='foobar'"):
-            _validate_pedigree_config(self._wrap({"mating_model": "foobar"}))
+            _validate(self._wrap({"mating_model": "foobar"}))
 
     def test_wf_with_explicit_mating_lambda_raises(self):
         # Any explicit mating_lambda override is rejected under WF, even at default.
         with pytest.raises(ValueError, match="mating_lambda"):
-            _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "mating_lambda": 0.5}))
+            _validate(self._wrap({"mating_model": "wright_fisher", "mating_lambda": 0.5}))
 
     def test_wf_with_explicit_p_mztwin_zero_passes(self):
-        _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "p_mztwin": 0}))
+        _validate(self._wrap({"mating_model": "wright_fisher", "p_mztwin": 0}))
 
     def test_wf_with_explicit_p_mztwin_nonzero_raises(self):
         with pytest.raises(ValueError, match="p_mztwin"):
-            _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "p_mztwin": 0.05}))
+            _validate(self._wrap({"mating_model": "wright_fisher", "p_mztwin": 0.05}))
 
     def test_wf_with_inherited_default_p_mztwin_passes(self):
         # Default `p_mztwin: 0.02` lives in defaults; scenario doesn't touch it
@@ -363,37 +360,35 @@ class TestMatingModelValidation:
             },
             "scenarios": {"sc": {"mating_model": "wright_fisher", "E1": 0.5, "E2": 0.5}},
         }
-        _validate_pedigree_config(config)
+        _validate(config)
 
     def test_wf_with_assort1_zero_dict_passes(self):
-        _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "assort1": {0: 0, 1: 0}}))
+        _validate(self._wrap({"mating_model": "wright_fisher", "assort1": {0: 0, 1: 0}}))
 
     def test_wf_with_assort1_nonzero_dict_raises(self):
         with pytest.raises(ValueError, match="assort1"):
-            _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "assort1": {0: 0, 1: 0.3}}))
+            _validate(self._wrap({"mating_model": "wright_fisher", "assort1": {0: 0, 1: 0.3}}))
 
     def test_wf_with_assort1_nonzero_scalar_raises(self):
         with pytest.raises(ValueError, match="assort1"):
-            _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "assort1": 0.3}))
+            _validate(self._wrap({"mating_model": "wright_fisher", "assort1": 0.3}))
 
     def test_wf_with_assort2_nonzero_raises(self):
         with pytest.raises(ValueError, match="assort2"):
-            _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "assort2": 0.4}))
+            _validate(self._wrap({"mating_model": "wright_fisher", "assort2": 0.4}))
 
     def test_wf_with_assort_matrix_raises(self):
         with pytest.raises(ValueError, match="assort_matrix"):
-            _validate_pedigree_config(
-                self._wrap({"mating_model": "wright_fisher", "assort_matrix": [[0.3, 0.05], [0.05, 0.2]]})
-            )
+            _validate(self._wrap({"mating_model": "wright_fisher", "assort_matrix": [[0.3, 0.05], [0.05, 0.2]]}))
 
     def test_wf_with_assort_matrix_explicit_none_passes(self):
-        _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "assort_matrix": None}))
+        _validate(self._wrap({"mating_model": "wright_fisher", "assort_matrix": None}))
 
     @pytest.mark.parametrize("key", ["A1", "A2", "C1", "C2"])
     def test_per_generation_a_or_c_is_rejected(self, key):
         """The simulator takes scalar A and C only (``SimulationParams``); config must not accept a map (#75)."""
         with pytest.raises(ValueError, match=f"Scenario 'sc': {key} must be a scalar"):
-            _validate_pedigree_config(self._wrap({key: {0: 0.1, 2: 0.2}}))
+            _validate(self._wrap({key: {0: 0.1, 2: 0.2}}))
 
 
 class TestCTransmissionConfig:
@@ -427,20 +422,20 @@ class TestCTransmissionConfig:
     )
     def test_out_of_scope_coefficients_are_rejected(self, overrides, match):
         with pytest.raises(ValueError, match=match):
-            _validate_pedigree_config(self._wrap(overrides))
+            _validate(self._wrap(overrides))
 
     def test_full_c_correlation_with_equal_coefficients_passes(self):
-        _validate_pedigree_config(self._wrap({"rC": 1.0, "Ctm_maternal1": 0.5, "Ctm_maternal2": 0.5}))
+        _validate(self._wrap({"rC": 1.0, "Ctm_maternal1": 0.5, "Ctm_maternal2": 0.5}))
 
     def test_assortment_that_overfills_c_warns(self, caplog):
         # _wrap pins E1 = 0.5, so V_P = 1.3 and 0.98 + 2 * 0.49 * (0.5 * 0.5 / 1.3) = 1.168 > 1
         over = {"A1": 0.3, "C1": 0.5, "E1": 0.2, "assort1": 0.5, "Ctm_maternal1": 0.7, "Ctm_paternal1": 0.7}
         with caplog.at_level("WARNING", logger="simace.config"):
-            _validate_pedigree_config(self._wrap(over))
+            _validate(self._wrap(over))
         assert "trait 1 transmits 1.17 of C under assortative mating" in caplog.text
         caplog.clear()
         with caplog.at_level("WARNING", logger="simace.config"):
-            _validate_pedigree_config(self._wrap({**over, "assort1": 0.0}))
+            _validate(self._wrap({**over, "assort1": 0.0}))
         assert caplog.text == ""
 
     def test_am_transmitted_share_is_the_first_generation_form(self):
@@ -448,7 +443,7 @@ class TestCTransmissionConfig:
         assert am_transmitted_share(0.5, 0.0, 0.9, C=0.5, V_P=1.0) == pytest.approx(0.25)
 
     def test_wright_fisher_accepts_transmission(self):
-        _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "Ctm_maternal1": 0.5}))
+        _validate(self._wrap({"mating_model": "wright_fisher", "Ctm_maternal1": 0.5}))
 
 
 class TestInbreedingConfig:
@@ -478,7 +473,7 @@ class TestInbreedingConfig:
     )
     def test_bad_values_are_rejected(self, overrides, match):
         with pytest.raises(ValueError, match=match):
-            _validate_pedigree_config(self._wrap(overrides))
+            _validate(self._wrap(overrides))
 
     def test_a_refused_scenario_still_loads(self):
-        _validate_pedigree_config(self._wrap({"N": 1_000_000, "G_sim": 20, "inbreeding_mode": "exact"}))
+        _validate(self._wrap({"N": 1_000_000, "G_sim": 20, "inbreeding_mode": "exact"}))

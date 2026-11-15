@@ -16,27 +16,24 @@ import yaml
 import simace
 from simace.cli.layout import RepArtifact, add_root_args, require_config, resolve_roots
 from simace.cli.manifest import RepState, source_ref
-from simace.cli.stages import ResolvedRep
+from simace.cli.stages import scenario_reps
 from simace.cli.status import (
     ScenarioError,
     load_scenario,
     rep_ranges,
-    resolve_all,
     scenario_plots_status,
     status_on_disk,
 )
+from simace.config import load_scenarios
 from simace.core.yaml_io import to_native
 
 if TYPE_CHECKING:
     from simace.cli.layout import Layout
     from simace.cli.manifest import RepStatus
+    from simace.cli.stages import ResolvedRep
 
 
 _PEAK_COLUMNS = ("max_rss_mb", "tree_peak_mb")
-
-
-def _reps(params: dict, scenario: str) -> list[ResolvedRep]:
-    return [ResolvedRep(params["folder"], scenario, r, params) for r in range(1, int(params["replicates"]) + 1)]
 
 
 def _note(status: RepStatus) -> str:
@@ -114,18 +111,18 @@ def show_cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     config_dir, layout = resolve_roots(args)
     require_config(config_dir, "show")
     try:
-        params = load_scenario(config_dir, args.scenario)
+        scenario = load_scenario(config_dir, args.scenario)
     except ScenarioError as exc:
         print(f"simace show: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc
 
-    reps = _reps(params, args.scenario)
+    reps = scenario_reps(scenario)
     body = {
         "scenario": args.scenario,
-        "params": to_native(params),
+        "params": to_native(dict(scenario.flat)),
         "reps": {f"rep{rep.rep}": {"seed": rep.seed, "dir": str(rep.dir(layout))} for rep in reps},
         "plots": {
-            "dir": str(layout.scenario_plots(params["folder"], args.scenario)),
+            "dir": str(layout.scenario_plots(scenario.folder, args.scenario)),
             "state": scenario_plots_status(reps, layout).describe(),
         },
         "timing": _timing(layout, reps),
@@ -146,12 +143,12 @@ def ls_cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     config_dir, layout = resolve_roots(args)
     require_config(config_dir, "ls")
 
-    scenarios = resolve_all(config_dir)
-    for name in sorted(scenarios, key=lambda s: (scenarios[s]["folder"], s)):
-        params = scenarios[name]
-        if args.folder is not None and params["folder"] != args.folder:
+    scenarios = load_scenarios(config_dir)
+    for name in sorted(scenarios, key=lambda s: (scenarios[s].folder, s)):
+        scenario = scenarios[name]
+        if args.folder is not None and scenario.folder != args.folder:
             continue
-        reps = _reps(params, name)
+        reps = scenario_reps(scenario)
         print(
-            f"{params['folder']}/{name}  {_states(layout, reps)}; plots {scenario_plots_status(reps, layout).describe()}"
+            f"{scenario.folder}/{name}  {_states(layout, reps)}; plots {scenario_plots_status(reps, layout).describe()}"
         )

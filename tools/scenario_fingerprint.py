@@ -122,15 +122,16 @@ def decisions(out: Path) -> None:
     """Write the no-simulation fingerprint of every shipped scenario to ``out``."""
     from simace.cli.layout import Layout
     from simace.cli.stages import PARAMS_YAML_KEYS, STAGES, ResolvedRep
-    from simace.cli.status import resolve_all
+    from simace.config import load_scenarios
     from simace.core.yaml_io import dump_yaml, load_yaml
     from simace.simulation.emit_params import emit_params
 
     layout = Layout(root=Path("results"), logs=Path("logs"))
     result: dict[str, Any] = {}
     tmp = out.with_suffix(".params.yaml")
-    for name, params in sorted(resolve_all(ROOT / "config").items()):
-        rep = ResolvedRep(params["folder"], name, 1, params)
+    for name, scenario in sorted(load_scenarios(ROOT / "config").items()):
+        params = scenario.flat
+        rep = ResolvedRep(scenario.folder, name, 1, params)
         emitted = emit_params(seed=rep.seed, rep=1, **{key: params[key] for key in PARAMS_YAML_KEYS})
         dump_yaml(emitted, tmp, sort_keys=True)
         on_disk = load_yaml(tmp)

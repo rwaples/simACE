@@ -14,7 +14,6 @@ __all__ = [
     "rep_outputs",
     "rep_ranges",
     "rep_spans",
-    "resolve_all",
     "scenario_plots_status",
     "stage_names",
     "status_on_disk",
@@ -44,27 +43,22 @@ if TYPE_CHECKING:
 
     from simace.cli.layout import Layout
     from simace.cli.stages import ResolvedRep, Stage
+    from simace.config import Scenario
 
 
 class ScenarioError(Exception):
     """A scenario that cannot be run: unknown, or outside what ``run`` supports."""
 
 
-def resolve_all(config_dir: Path) -> dict[str, dict[str, Any]]:
-    """Return every scenario's resolved flat parameters (defaults merged in)."""
-    from simace.config import resolve_defaults, resolve_scenarios
-
-    defaults = resolve_defaults(config_dir)
-    return {name: {**defaults, **params} for name, params in resolve_scenarios(config_dir, defaults).items()}
-
-
-def load_scenario(config_dir: Path, name: str) -> dict[str, Any]:
-    """Return the resolved flat parameters of one scenario.
+def load_scenario(config_dir: Path, name: str) -> Scenario:
+    """Return one parsed scenario.
 
     Raises:
         ScenarioError: the scenario is unknown.
     """
-    scenarios = resolve_all(config_dir)
+    from simace.config import load_scenarios
+
+    scenarios = load_scenarios(config_dir)
     if name not in scenarios:
         known = "\n  ".join(sorted(scenarios))
         raise ScenarioError(f"unknown scenario {name!r}; known scenarios:\n  {known}")

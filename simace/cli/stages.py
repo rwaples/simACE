@@ -19,6 +19,7 @@ __all__ = [
     "atlas_argv",
     "plot_argv",
     "rep_param_keys",
+    "scenario_reps",
 ]
 
 import inspect
@@ -38,6 +39,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from simace.cli.layout import Layout
+    from simace.config import Scenario
 
 
 @dataclass(frozen=True)
@@ -65,6 +67,11 @@ class ResolvedRep:
     def log(self, layout: Layout, stage: str) -> Path:
         """Return the log path of one of this rep's stages."""
         return layout.log(self.folder, self.scenario, self.rep, stage)
+
+
+def scenario_reps(scenario: Scenario) -> list[ResolvedRep]:
+    """Every rep of ``scenario``, ``rep1`` first."""
+    return [ResolvedRep(scenario.folder, scenario.name, r, scenario.flat) for r in range(1, scenario.replicates + 1)]
 
 
 @dataclass(frozen=True)
