@@ -1,9 +1,9 @@
 """Assemble the curated v2 Analyze report from quality-check + stats outputs.
 
-Pure functions that re-home the raw quality report and the six stats groups
-into the v2 scientific shape (``inputs``, ``scopes``, ``quality_checks``,
-``truth``, ``observed``, ``estimators``) plus the scope-organized
-``plot_payload``. See ``docs/adr/0008-curated-analyze-report.md`` and
+Pure functions that re-home the raw quality report and the analysis sample's
+:class:`~simace.analysis.sample_stats.SampleStats` into the v2 scientific
+shape (``inputs``, ``scopes``, ``quality_checks``, ``truth``, ``observed``,
+``estimators``) plus the scope-organized ``plot_payload``. See ``docs/adr/0008-curated-analyze-report.md`` and
 ``report_schema.py`` for the contract.
 """
 
@@ -11,13 +11,9 @@ from __future__ import annotations
 
 __all__ = ["assemble_report"]
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .report_schema import (
-    ANALYSIS_SAMPLE_CORRELATION_KEYS,
-    ANALYSIS_SAMPLE_INCIDENCE_KEYS,
-    ANALYSIS_SAMPLE_PEDIGREE_KEYS,
-    CENSORING_RENAME,
     PLOT_PAYLOAD_SCHEMA_NAME,
     PLOT_PAYLOAD_SCHEMA_VERSION,
     REPORT_SCHEMA_NAME,
@@ -25,6 +21,9 @@ from .report_schema import (
     assert_report_contract,
     partition_dense,
 )
+
+if TYPE_CHECKING:
+    from .sample_stats import SampleStats
 
 # Skip these when normalizing quality checks — they carry no pass/fail rows.
 _NON_CHECK_CATEGORIES = frozenset({"per_generation", "summary", "family_size_distribution"})
@@ -205,7 +204,7 @@ def extract_truth(
     }
 
 
-def extract_estimators(quality_report: dict[str, Any], stats_report: dict[str, Any]) -> dict[str, Any]:
+def extract_estimators(quality_report: dict[str, Any], observed_h2_estimators: dict[str, Any]) -> dict[str, Any]:
     """Heritability estimators: relationship/outcome-derived, by scale."""
     her = quality_report.get("heritability", {})
 
@@ -229,41 +228,7 @@ def extract_estimators(quality_report: dict[str, Any], stats_report: dict[str, A
             "parent_offspring_liability_r2": reg(f"parent_offspring_liability{t}_regression", "r_squared"),
         }
 
-    observed_scale = (stats_report.get("heritability") or {}).get("observed_h2_estimators", {})
-    return {"heritability": {"observed_scale": observed_scale, "liability_scale": liability_scale}}
-
-
-def _rebucket_analysis_sample(stats_report: dict[str, Any]) -> dict[str, Any]:
-    """Collect the analysis-sample (post-ascertainment) stats into one block."""
-    inc = stats_report.get("incidence", {})
-    cen = stats_report.get("censoring", {})
-    ped = stats_report.get("pedigree", {})
-    cor = stats_report.get("correlations", {})
-    sample: dict[str, Any] = {}
-    sample.update({k: inc[k] for k in ANALYSIS_SAMPLE_INCIDENCE_KEYS if k in inc})
-    if "person_years" in cen:
-        sample["person_years"] = cen["person_years"]
-    for src, dst in CENSORING_RENAME.items():
-        if src in cen:
-            sample[dst] = cen[src]
-    sample.update({k: ped[k] for k in ANALYSIS_SAMPLE_PEDIGREE_KEYS if k in ped})
-    sample.update({k: cor[k] for k in ANALYSIS_SAMPLE_CORRELATION_KEYS if k in cor})
-    return sample
-
-
-def _rebucket_analysis_pedigree(stats_report: dict[str, Any]) -> dict[str, Any]:
-    """Collect the ancestor-closure-pedigree stats into one block."""
-    ped = stats_report.get("pedigree", {})
-    cor = stats_report.get("correlations", {})
-    out: dict[str, Any] = {}
-    full = ped.get("full") or {}
-    if full.get("relationship_pair_counts") is not None:
-        out["relationship_pair_counts"] = full["relationship_pair_counts"]
-    if "parent_status" in ped:
-        out["parent_status"] = ped["parent_status"]
-    if "mate_correlation" in cor:
-        out["mate_correlation"] = cor["mate_correlation"]
-    return out
+    return {"heritability": {"observed_scale": observed_h2_estimators, "liability_scale": liability_scale}}
 
 
 def build_ascertainment_summary(
@@ -316,7 +281,7 @@ def assemble_report(
     params: dict[str, Any],
     case_ascertainment_ratio: float,
     quality_report: dict[str, Any],
-    stats_report: dict[str, Any],
+    stats: SampleStats,
     prevalence_phenotyped: dict[str, Any],
     scope_counts: dict[str, Any],
     recorded_truth: dict[str, Any] | None = None,
@@ -328,7 +293,7 @@ def assemble_report(
 
     Returns ``(report, plot_payload)``.
     """
-    prevalence_sample = (stats_report.get("incidence") or {}).get("prevalence", {})
+    prevalence_sample = stats.analysis_sample.prevalence
     ascertainment = build_ascertainment_summary(prevalence_phenotyped, prevalence_sample, scope_counts)
 
     # Split dense plot arrays out of every scope in one pass: the scalar half is
@@ -338,8 +303,8 @@ def assemble_report(
     observed_full = {
         "ascertainment": ascertainment,
         "phenotyped_population": {"prevalence": prevalence_phenotyped},
-        "analysis_sample": _rebucket_analysis_sample(stats_report),
-        "analysis_pedigree": _rebucket_analysis_pedigree(stats_report),
+        "analysis_sample": stats.analysis_sample.to_report(),
+        "analysis_pedigree": stats.analysis_pedigree.to_report(),
     }
     observed, observed_dense = partition_dense(observed_full)
 
@@ -351,7 +316,7 @@ def assemble_report(
         "quality_checks": normalize_quality_checks(quality_report),
         "truth": extract_truth(quality_report, params, recorded_truth),
         "observed": observed,
-        "estimators": extract_estimators(quality_report, stats_report),
+        "estimators": extract_estimators(quality_report, stats.observed_h2_estimators),
     }
     assert_report_contract(report)
 

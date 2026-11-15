@@ -42,7 +42,6 @@ COMMANDS: dict[str, Command] = {
     "validate": Command(
         "simace.cli.validate", "Run on-demand validation checks (onset τ, ...) on a scenario's complete reps"
     ),
-    "stats": Command("simace.analysis.stats.runner", "Debug: build a stats report for one replicate"),
     "effective-size": Command("simace.analysis.stats.effective_size", "Estimate Ne for one replicate"),
     "plot-effective-size": Command("simace.plotting.plot_effective_size", "Render the Ne atlas"),
     "parquet-to-tsv": Command("simace.core.parquet_to_tsv", "Convert parquet files to TSV"),

@@ -143,28 +143,18 @@ def run_analysis(
     df_trait, df_ped = views.trait, views.pedigree
     del views
     df = hydrate_trait(df_trait, df_ped, kind="censored", columns=PEDIGREE_REPORT_COLUMNS)
-    stats_report = build_stats_report(
-        df,
-        censor_age,
-        gen_censoring=gen_censoring,
-        df_ped=df_ped,
-        max_degree=max_degree,
-        case_ascertainment_ratio=case_ascertainment_ratio,
-    )
-    metadata = stats_report.get("metadata", {})
-    sample_n = metadata.get("n_individuals", len(df))
+    stats = build_stats_report(df, df_ped, censor_age, gen_censoring=gen_censoring, max_degree=max_degree)
+    sample, pedigree = stats.sample_size, stats.pedigree_size
     scope_counts["analysis_sample"] = {
         "source": "cohort.parquet (affected1 not null)",
-        "n_individuals": sample_n,
-        "n_generations": metadata.get("n_generations", _n_generations(df)),
+        "n_individuals": sample.n_individuals,
+        "n_generations": sample.n_generations,
     }
-    pedigree_full = (stats_report.get("pedigree") or {}).get("full") or {}
-    pedigree_n = pedigree_full.get("n_individuals", len(df_ped))
     scope_counts["analysis_pedigree"] = {
         "source": "pedigree.parquet filtered to cohort.parquet",
-        "n_individuals": pedigree_n,
-        "n_generations": pedigree_full.get("n_generations", _n_generations(df_ped)),
-        "ancestor_closure_ratio": (pedigree_n / sample_n) if sample_n else None,
+        "n_individuals": pedigree.n_individuals,
+        "n_generations": pedigree.n_generations,
+        "ancestor_closure_ratio": (pedigree.n_individuals / sample.n_individuals) if sample.n_individuals else None,
     }
     del df_trait, df_ped
 
@@ -173,7 +163,7 @@ def run_analysis(
         params=params,
         case_ascertainment_ratio=case_ascertainment_ratio,
         quality_report=quality_report,
-        stats_report=stats_report,
+        stats=stats,
         prevalence_phenotyped=prevalence_phenotyped,
         scope_counts=scope_counts,
         recorded_truth=recorded_truth,

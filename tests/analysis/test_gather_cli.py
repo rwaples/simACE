@@ -7,6 +7,7 @@ import pytest
 import yaml
 
 from simace.analysis.report import assemble_report
+from simace.analysis.sample_stats import AnalysisPedigreeStats, AnalysisSampleStats, SampleStats, ScopeSize
 
 # ---------------------------------------------------------------------------
 # cli_base
@@ -149,7 +150,13 @@ _MINIMAL_REPORT, _ = assemble_report(
     params=_MINIMAL_VALIDATION["parameters"],
     case_ascertainment_ratio=1.0,
     quality_report=_MINIMAL_VALIDATION,
-    stats_report={},
+    stats=SampleStats(
+        sample_size=ScopeSize(n_individuals=0, n_generations=0),
+        pedigree_size=ScopeSize(n_individuals=0, n_generations=0),
+        analysis_sample=AnalysisSampleStats.from_report({}),
+        analysis_pedigree=AnalysisPedigreeStats.from_report({}),
+        observed_h2_estimators={},
+    ),
     prevalence_phenotyped={},
     scope_counts={},
 )

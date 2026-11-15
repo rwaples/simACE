@@ -11,11 +11,7 @@ from typing import Any
 
 import numpy as np
 
-from simace.analysis.report_schema import (
-    ANALYSIS_SAMPLE_CORRELATION_KEYS,
-    ANALYSIS_SAMPLE_INCIDENCE_KEYS,
-    CENSORING_RENAME,
-)
+from simace.analysis.sample_stats import SampleStats
 from simace.simulation.params import SimulationParams
 
 __all__ = [
@@ -25,23 +21,6 @@ __all__ = [
     "truth_entry",
     "truth_mean",
 ]
-
-# analysis_sample keys that map straight through to the flat view by name.
-# Derived from the producer's source-of-truth sets (report_schema) so the
-# adapter cannot drift out of sync with what the report actually emits.
-_SAMPLE_PASSTHROUGH = (*ANALYSIS_SAMPLE_INCIDENCE_KEYS, *ANALYSIS_SAMPLE_CORRELATION_KEYS)
-
-
-def _deep_merge(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
-    """Recursively merge ``extra`` into a copy of ``base`` (``extra`` wins)."""
-    merged = dict(base)
-    for key, value in extra.items():
-        existing = merged.get(key)
-        if isinstance(existing, dict) and isinstance(value, dict):
-            merged[key] = _deep_merge(existing, value)
-        else:
-            merged[key] = value
-    return merged
 
 
 def report_per_generation(report: dict[str, Any] | None) -> dict[str, Any]:
@@ -68,53 +47,37 @@ def report_per_generation(report: dict[str, Any] | None) -> dict[str, Any]:
     return out
 
 
-def plotting_report_view(report: dict[str, Any] | None, plot_payload: dict[str, Any] | None = None) -> dict[str, Any]:
+def plotting_report_view(report: dict[str, Any], plot_payload: dict[str, Any] | None = None) -> dict[str, Any]:
     """Build the flat plotting view from a v2 report and its plot payload.
 
     ``plot_payload`` may be omitted when only scalar fields are needed (e.g.
     ad-hoc cross-scenario tools); curve arrays will then be absent.
     """
-    report = report or {}
-    observed = report.get("observed") or {}
-    scopes = report.get("scopes") or {}
+    stats = SampleStats.from_report(report, plot_payload)
+    sample = stats.analysis_sample
+    pedigree = stats.analysis_pedigree
 
-    sample = observed.get("analysis_sample") or {}
-    if plot_payload:
-        sample = _deep_merge(sample, plot_payload.get("analysis_sample") or {})
-    pedigree = observed.get("analysis_pedigree") or {}
+    view: dict[str, Any] = {
+        "n_individuals": stats.sample_size.n_individuals,
+        "n_generations": stats.sample_size.n_generations,
+    }
+    view |= {key: value for key, value in sample.to_report().items() if not key.startswith("censoring_")}
+    # The plot helpers want the windows curve under the bare key "censoring".
+    if sample.censoring_windows is not None:
+        view["censoring"] = sample.censoring_windows
+    if sample.censoring_confusion is not None:
+        view["censoring_confusion"] = sample.censoring_confusion
+    if sample.censoring_cascade is not None:
+        view["censoring_cascade"] = sample.censoring_cascade
+    view["pair_counts"] = sample.relationship_pair_counts
 
-    view: dict[str, Any] = {}
-    view["n_individuals"] = (scopes.get("analysis_sample") or {}).get("n_individuals")
-    view["n_generations"] = (scopes.get("analysis_sample") or {}).get("n_generations")
+    view["parent_status"] = pedigree.parent_status
+    view["mate_correlation"] = pedigree.mate_correlation
+    view["pair_counts_ped"] = pedigree.relationship_pair_counts
+    view["n_individuals_ped"] = stats.pedigree_size.n_individuals
+    view["n_generations_ped"] = stats.pedigree_size.n_generations
 
-    for key in _SAMPLE_PASSTHROUGH:
-        if key in sample:
-            view[key] = sample[key]
-
-    view["person_years"] = sample.get("person_years")
-    # Censoring fields were renamed on the way into the report (CENSORING_RENAME);
-    # the plot helpers want the windows curve under the bare key "censoring", and
-    # the confusion/cascade tables under their renamed keys.
-    windows_field = CENSORING_RENAME["windows"]
-    if windows_field in sample:
-        view["censoring"] = sample[windows_field]
-    for src in ("confusion", "cascade"):
-        field = CENSORING_RENAME[src]
-        if field in sample:
-            view[field] = sample[field]
-    view["family_size"] = sample.get("family_size")
-    view["pair_counts"] = sample.get("relationship_pair_counts")
-
-    view["parent_status"] = pedigree.get("parent_status")
-    if "mate_correlation" in pedigree:
-        view["mate_correlation"] = pedigree["mate_correlation"]
-    full_counts = pedigree.get("relationship_pair_counts")
-    if full_counts is not None:
-        view["pair_counts_ped"] = full_counts
-        view["n_individuals_ped"] = (scopes.get("analysis_pedigree") or {}).get("n_individuals")
-        view["n_generations_ped"] = (scopes.get("analysis_pedigree") or {}).get("n_generations")
-
-    view["observed_h2_estimators"] = ((report.get("estimators") or {}).get("heritability") or {}).get("observed_scale")
+    view["observed_h2_estimators"] = stats.observed_h2_estimators
     view["per_generation"] = report_per_generation(report)
     view["parameters"] = (report.get("inputs") or {}).get("parameters", {})
     # The parameters as the record the reference lines read; None for a report without them.
@@ -129,7 +92,7 @@ def plotting_report_view(report: dict[str, Any] | None, plot_payload: dict[str, 
 
 
 def plotting_report_views(
-    reports: list[dict[str, Any] | None],
+    reports: list[dict[str, Any]],
     plot_payloads: list[dict[str, Any] | None] | None = None,
 ) -> list[dict[str, Any]]:
     """Build plotting views for a list of v2 reports and their plot payloads."""

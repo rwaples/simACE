@@ -15,10 +15,6 @@ See ``docs/adr/0008-curated-analyze-report.md``.
 from __future__ import annotations
 
 __all__ = [
-    "ANALYSIS_SAMPLE_CORRELATION_KEYS",
-    "ANALYSIS_SAMPLE_INCIDENCE_KEYS",
-    "ANALYSIS_SAMPLE_PEDIGREE_KEYS",
-    "CENSORING_RENAME",
     "DENSE_ARRAY_KEYS",
     "PLOT_PAYLOAD_SCHEMA_NAME",
     "PLOT_PAYLOAD_SCHEMA_VERSION",
@@ -79,54 +75,6 @@ DENSE_ARRAY_KEYS = frozenset(
         "observed_incidence",
     }
 )
-
-# ---------------------------------------------------------------------------
-# analysis_sample namespace — the single source of truth for which stats-group
-# keys re-home into observed.analysis_sample. The producer
-# (report._rebucket_analysis_sample) and the plotting adapter
-# (plotting.stats_report) both import these, so the two cannot drift: a key
-# emitted by one but missed by the other was a real defect class this set
-# exists to remove.
-# ---------------------------------------------------------------------------
-
-# `incidence`-group keys; pass straight through to the flat plotting view.
-ANALYSIS_SAMPLE_INCIDENCE_KEYS = (
-    "prevalence",
-    "mortality",
-    "regression",
-    "cumulative_incidence",
-    "cumulative_incidence_by_sex",
-    "cumulative_incidence_by_sex_generation",
-    "cumulative_incidence_aj",
-    "cumulative_incidence_aj_by_sex",
-    "cumulative_incidence_aj_by_sex_generation",
-)
-
-# `correlations`-group keys; pass straight through to the flat plotting view.
-ANALYSIS_SAMPLE_CORRELATION_KEYS = (
-    "liability_correlations",
-    "affected_correlations",
-    "parent_offspring_corr",
-    "parent_offspring_corr_by_sex",
-    "parent_offspring_affected_corr",
-    "tetrachoric",
-    "tetrachoric_by_generation",
-    "tetrachoric_by_sex",
-    "cross_trait_tetrachoric",
-    "joint_affection",
-)
-
-# `pedigree`-group keys re-homed verbatim into the analysis_sample block.
-ANALYSIS_SAMPLE_PEDIGREE_KEYS = ("family_size", "relationship_pair_counts")
-
-# `censoring`-group subkeys -> their analysis_sample field name. Renamed on the
-# way in so they are unambiguous alongside the incidence/correlation keys; the
-# adapter reverses this map, so it lives here once.
-CENSORING_RENAME = {
-    "windows": "censoring_windows",
-    "confusion": "censoring_confusion",
-    "cascade": "censoring_cascade",
-}
 
 
 def partition_dense(node: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:

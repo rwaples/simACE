@@ -1,8 +1,10 @@
 """Compute per-replicate stats reports for downstream plotting.
 
-Reads an outcomes-only analysis-sample trait frame plus its analysis pedigree (hydrated internally) and produces:
-  - the six grouped stats sections (the stats portion of report.yaml; ADR 0008)
-  - plotting_sample.parquet: downsampled rows for scatter/histogram plots
+Analyze computes them on the hydrated analysis sample and its analysis
+pedigree: :func:`build_stats_report` returns the
+:class:`~simace.analysis.sample_stats.SampleStats` that ``report.yaml``'s
+``observed`` and ``estimators`` groups carry (ADR 0008), and
+:func:`create_sample` draws the plotting sample.
 
 Public API is re-exported from focused sub-modules:
 
@@ -15,7 +17,7 @@ Public API is re-exported from focused sub-modules:
 - :mod:`.censoring` — censoring windows, confusion, cascade, person-years
 - :mod:`.pedigree` — family size, parent presence
 - :mod:`.sampling` — per-rep downsampling for plots
-- :mod:`.runner` — ``main`` and ``cli`` entry point
+- :mod:`.runner` — ``build_stats_report``
 """
 
 from simace.analysis.prevalence import compute_prevalence
@@ -58,13 +60,12 @@ from .incidence import (
 )
 from .moments import relationship_moments_for
 from .pedigree import compute_mean_family_size, compute_parent_status
-from .runner import build_stats_report, cli, main
+from .runner import build_stats_report
 from .sampling import create_sample
 from .tetrachoric import tetrachoric_corr, tetrachoric_corr_se, tetrachoric_from_table
 
 __all__ = [
     "build_stats_report",
-    "cli",
     "compute_affected_correlations",
     "compute_censoring_cascade",
     "compute_censoring_confusion",
@@ -94,7 +95,6 @@ __all__ = [
     "compute_tetrachoric_by_generation",
     "compute_tetrachoric_by_sex",
     "create_sample",
-    "main",
     "ne_drift_expected_ztp",
     "regression_estimator_regime_ok",
     "relationship_moments_for",
