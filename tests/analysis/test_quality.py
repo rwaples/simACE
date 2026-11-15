@@ -6,6 +6,7 @@ import pytest
 
 from simace.analysis.mate_correlation import mate_pedigree
 from simace.analysis.quality import (
+    FamilyResult,
     build_quality_report,
     compute_family_size_distribution,
     compute_per_generation_stats,
@@ -21,6 +22,7 @@ from simace.analysis.quality import (
 from simace.analysis.quality._common import mate_correlations, sibling_moments
 from simace.analysis.quality.am_equilibrium import validate_am_equilibrium
 from simace.analysis.quality.assortative_mating import recorded_matings
+from simace.analysis.quality.runner import FAMILIES
 from simace.analysis.stats.heritability import ge_h2_metrics
 from simace.ascertainment import run_ascertainment
 from simace.core.pedigree_arrays import PedigreeArrays
@@ -95,11 +97,19 @@ def heritability_result(val_pedigree, val_params, val_ped, val_mate_pedigree, va
 # ---------------------------------------------------------------------------
 
 
-def _all_passed(result: dict) -> None:
-    """Assert every check in a validation result dict has passed=True."""
+def _all_passed(result: FamilyResult | dict) -> None:
+    """Assert every check in a family's result passed."""
+    if isinstance(result, FamilyResult):
+        for check in result.checks:
+            assert check.passed, f"Check '{check.name}' failed: {check.message}"
+        return
     for key, value in result.items():
         if isinstance(value, dict) and "passed" in value:
             assert value["passed"], f"Check '{key}' failed: {value.get('details', '')}"
+
+
+def _names(result: FamilyResult) -> list[str]:
+    return [check.name for check in result.checks]
 
 
 def _component_df(a: np.ndarray, c: np.ndarray, e: np.ndarray) -> pl.DataFrame:
@@ -134,10 +144,8 @@ class TestValidateStructural:
 
     def test_expected_keys(self, val_pedigree, val_params, val_ped):
         result = validate_structural(val_pedigree, sim_params(val_params), val_ped)
-        assert "id_integrity" in result
-        assert "parent_references" in result
-        assert "sex_parent_consistency" in result
-        assert "sex_distribution" in result
+        assert _names(result) == ["id_integrity", "parent_references", "sex_parent_consistency", "sex_distribution"]
+        assert result.measurements.sex_ratio_male == result.check("sex_distribution").observed
 
 
 class TestValidateTwins:
@@ -147,14 +155,14 @@ class TestValidateTwins:
 
     def test_twin_rate_present(self, val_pedigree, val_params, val_ped):
         result = validate_twins(val_pedigree, sim_params(val_params), val_ped)
-        assert "twin_rate" in result
-        assert "observed_rate" in result["twin_rate"]
+        assert result.check("twin_rate").observed == result.measurements.twin_rate
+        assert result.measurements.twin_rate is not None
 
     def test_wf_with_inherited_default_p_mztwin_scores_only_the_rate(self, val_pedigree, val_ped):
         # Under WF, inherited p_mztwin=0.02 must NOT trigger a failed twin_rate
         # check (the standard branch fails because 0.02 > 0.01).  Branch on
-        # mating_model and report observed_rate=0.0, expected_rate=0.0. With
-        # no twin records the structural twin checks are informational.
+        # mating_model and report an observed and expected rate of 0.0. With
+        # no twin records the structural twin checks do not run.
         wf_params = {"mating_model": "wright_fisher", "p_mztwin": 0.02}
         # Use a freshly-simulated WF pedigree so n_twins is actually 0.
         wf_ped = run_simulation(
@@ -176,12 +184,11 @@ class TestValidateTwins:
             mating_model="wright_fisher",
         ).pedigree
         result = validate_twins(wf_ped, sim_params(wf_params), PedigreeArrays.from_frame(wf_ped))
-        assert result["twin_rate"]["passed"] is True
-        assert result["twin_rate"]["expected_rate"] == 0.0
-        assert result["twin_rate"]["observed_rate"] == 0.0
-        for name in ("twin_bidirectional", "twin_same_parents", "twin_same_A1", "twin_same_A2", "twin_same_sex"):
-            assert result[name].get("informational") is True
-            assert "passed" not in result[name]
+        rate = result.check("twin_rate")
+        assert rate.passed is True
+        assert rate.expected == 0.0
+        assert rate.observed == 0.0
+        assert _names(result) == ["twin_rate"]
 
     def test_wf_fails_when_twins_present(self, val_pedigree, val_ped):
         """If a pedigree labelled mating_model=wright_fisher contains any twins
@@ -193,11 +200,11 @@ class TestValidateTwins:
         wf_params = {"mating_model": "wright_fisher", "p_mztwin": 0.02}
         result = validate_twins(val_pedigree, sim_params(wf_params), val_ped)
         assert (val_pedigree["twin"] != -1).any(), "fixture sanity: pedigree must contain twins"
-        rate = result["twin_rate"]
-        assert rate["passed"] is False
-        assert rate["expected_rate"] == 0.0
-        assert rate["observed_rate"] > 0.0
-        assert rate["twin_pairs"] > 0
+        rate = result.check("twin_rate")
+        assert rate.passed is False
+        assert rate.expected == 0.0
+        assert rate.observed > 0.0
+        assert result.measurements.twin_rate == rate.observed
 
 
 class TestValidateHalfSibs:
@@ -218,12 +225,10 @@ class TestValidateConsanguineous:
         _all_passed(result)
 
     def test_non_negative_counts(self, val_pedigree, val_params, val_ped):
-        result = validate_consanguineous_matings(val_pedigree, val_ped)
-        for key, value in result.items():
-            if isinstance(value, dict):
-                for k, v in value.items():
-                    if k.startswith("n_"):
-                        assert v >= 0, f"{key}.{k} = {v}"
+        counts = validate_consanguineous_matings(val_pedigree, val_ped).measurements
+        assert counts.n_half_sib_matings >= 0
+        assert counts.n_full_sib_matings >= 0
+        assert counts.total_missing_gp_links >= 0
 
 
 class TestValidateStatistical:
@@ -234,23 +239,23 @@ class TestValidateStatistical:
     def test_founder_e_without_g_sim_is_read_at_the_schedule_span_burn_in(self, val_pedigree, val_params):
         """With ``G_sim`` absent, G_sim falls back to G_ped and burn-in is 0, as in ``generation0`` (#79)."""
         params = {k: v for k, v in val_params.items() if k != "G_sim"} | {"E1": {0: 0.3, 1: 0.6}}
-        assert validate_statistical(val_pedigree, sim_params(params))["variance_E1"]["expected"] == 0.3
+        assert validate_statistical(val_pedigree, sim_params(params)).check("variance_E1").expected == 0.3
 
     def test_variance_keys(self, val_pedigree, val_params):
         result = validate_statistical(val_pedigree, sim_params(val_params))
         for comp in ["A1", "C1", "E1", "A2", "C2", "E2"]:
-            assert f"variance_{comp}" in result
+            assert result.check(f"variance_{comp}").observed is not None
 
     def test_total_variance_and_rc_are_reported_only(self, val_pedigree, val_params):
         """`simace validate` tests them (ADR 0030); Analyze keeps their values for `truth`."""
         result = validate_statistical(val_pedigree, sim_params(val_params))
         for key in ("total_variance_trait1", "total_variance_trait2", "cross_trait_rC"):
-            assert result[key]["informational"] is True
-            assert "passed" not in result[key]
-            assert np.isfinite(result[key]["observed"])
+            assert result.find(key) is None
+        assert all(np.isfinite(trait.var_liability) for trait in result.measurements.traits)
+        assert np.isfinite(result.measurements.rC)
 
     def test_cross_trait_rA_is_scored_under_random_mating(self, val_pedigree, val_params):
-        assert validate_statistical(val_pedigree, sim_params(val_params))["cross_trait_rA"]["passed"] is True
+        assert validate_statistical(val_pedigree, sim_params(val_params)).check("cross_trait_rA").passed is True
 
     @pytest.mark.parametrize(
         "assort",
@@ -262,20 +267,18 @@ class TestValidateStatistical:
     )
     def test_cross_trait_rA_is_informational_under_assortative_mating(self, val_pedigree, val_params, assort):
         # AM shifts the founders' rA away from the configured value, as it
-        # inflates Var(A), so it is reported with its observed value only.
+        # inflates Var(A), so it is measured and not checked.
         result = validate_statistical(val_pedigree, sim_params({**val_params, **assort}))
         random_mating = validate_statistical(val_pedigree, sim_params(val_params))
-        cross = result["cross_trait_rA"]
-        assert cross.get("informational") is True
-        assert "passed" not in cross
-        assert cross["observed"] == random_mating["cross_trait_rA"]["observed"]
-        # rE does not depend on assortment and stays scored.
-        assert "passed" in result["cross_trait_rE"]
+        assert result.find("cross_trait_rA") is None
+        assert result.measurements.rA == random_mating.check("cross_trait_rA").observed
+        # rE does not depend on assortment and stays checked.
+        assert result.find("cross_trait_rE") is not None
 
     def test_cross_trait_rA_stays_scored_under_wright_fisher(self, val_pedigree, val_params):
         # Wright-Fisher pairs at random whatever assortment it inherits.
         params = {**val_params, "assort1": 0.3, "assort2": 0.3, "mating_model": "wright_fisher"}
-        assert "passed" in validate_statistical(val_pedigree, sim_params(params))["cross_trait_rA"]
+        assert validate_statistical(val_pedigree, sim_params(params)).find("cross_trait_rA") is not None
 
 
 class TestValidateHeritability:
@@ -340,9 +343,9 @@ class TestValidatePopulation:
         _all_passed(result)
 
     def test_generation_count_reports_the_number_of_labels(self, val_pedigree, val_params):
-        count = validate_population(val_pedigree, sim_params(val_params))["generation_count"]
-        assert count["passed"] is True
-        assert count["observed"] == count["expected"] == val_params["G_ped"]
+        count = validate_population(val_pedigree, sim_params(val_params)).check("generation_count")
+        assert count.passed is True
+        assert count.observed == count.expected == val_params["G_ped"]
 
     @pytest.mark.parametrize(
         "relabel",
@@ -358,9 +361,9 @@ class TestValidatePopulation:
         generation = relabel(val_pedigree["generation"].to_numpy())
         ped = _with_column_values(val_pedigree, "generation", generation)
         result = validate_population(ped, sim_params(val_params))
-        assert result["generation_count"]["passed"] is False
+        assert result.check("generation_count").passed is False
         # The id ranges are untouched, so only the label check sees the damage.
-        assert result["generation_sizes"]["passed"] is True
+        assert result.check("generation_sizes").passed is True
 
 
 class TestComputeFamilySizeDistribution:
@@ -598,7 +601,9 @@ class TestValidateAssortativeMating:
             "assort1": 0.8,
             "assort2": 0.8,
         }
-        result = build_quality_report(run_simulation(**params).pedigree, sim_params(params))["assortative_mating"]
+        result = build_quality_report(run_simulation(**params).pedigree, sim_params(params)).legacy[
+            "assortative_mating"
+        ]
         _assert_information(result)
         for key in ("mate_corr_cross_12", "mate_corr_cross_21"):
             assert result[key]["expected"] == pytest.approx(0.8 * 0.6 * 0.8)
@@ -616,26 +621,18 @@ def quality_report(val_pedigree, val_params):
 
 
 class TestBuildQualityReport:
-    def test_returns_summary(self, quality_report):
-        s = quality_report["summary"]
-        assert s["checks_total"] == s["checks_passed"] + s["checks_failed"]
-        assert s["passed"] is (s["checks_failed"] == 0)
+    def test_rows_follow_family_order(self, quality_report):
+        families = [row["id"].split(".")[0] for row in quality_report.rows()]
+        assert families == sorted(families, key=FAMILIES.index)
+        assert set(families) <= set(FAMILIES)
 
-    def test_top_level_categories_present(self, quality_report):
-        for cat in (
-            "structural",
-            "twins",
-            "half_sibs",
-            "statistical",
-            "heritability",
-            "population",
-            "per_generation",
-            "assortative_mating",
-            "consanguineous_matings",
-            "summary",
-            "family_size_distribution",
-        ):
-            assert cat in quality_report, f"missing category {cat!r}"
+    def test_every_check_passes_on_a_correct_pedigree(self, quality_report):
+        failed = [row["id"] for row in quality_report.rows() if row["status"] != "pass"]
+        assert not failed
+
+    def test_summaries_present(self, quality_report):
+        assert set(quality_report.per_generation) == {"generation_1", "generation_2", "generation_3"}
+        assert set(quality_report.family_size_distribution) == {"mother", "father"}
 
 
 # ---------------------------------------------------------------------------
@@ -674,6 +671,14 @@ def _assert_informational(result: dict) -> None:
     assert "passed" not in result, result
 
 
+def _assert_not_checked(report, category: str, name: str) -> None:
+    """``category.name`` has no verdict on this rep: absent from a typed family, informational in a legacy one."""
+    if category in report.legacy:
+        _assert_informational(report.legacy[category][name])
+    else:
+        assert getattr(report, category).find(name) is None
+
+
 @pytest.fixture(scope="module")
 def founders_only_pedigree():
     return run_simulation(**_FOUNDERS_ONLY_PARAMS).pedigree
@@ -687,23 +692,22 @@ def founders_only_report(founders_only_pedigree):
 class TestNothingToTestIsInformational:
     @pytest.mark.parametrize(("category", "name"), _NOTHING_TO_TEST, ids=[f"{c}.{n}" for c, n in _NOTHING_TO_TEST])
     def test_check_without_data_is_informational(self, founders_only_report, category, name):
-        _assert_informational(founders_only_report[category][name])
+        _assert_not_checked(founders_only_report, category, name)
 
     def test_twin_rate_without_twins_is_still_scored(self, founders_only_pedigree):
         # Zero twins is evidence about the rate, so this check keeps its verdict.
         ped = PedigreeArrays.from_frame(founders_only_pedigree)
-        assert (
-            validate_twins(founders_only_pedigree, sim_params(_FOUNDERS_ONLY_PARAMS), ped)["twin_rate"]["passed"]
-            is True
-        )
+        assert validate_twins(founders_only_pedigree, sim_params(_FOUNDERS_ONLY_PARAMS), ped).check("twin_rate").passed
         high = {**_FOUNDERS_ONLY_PARAMS, "p_mztwin": 0.05}
-        assert validate_twins(founders_only_pedigree, sim_params(high), ped)["twin_rate"]["passed"] is False
+        assert validate_twins(founders_only_pedigree, sim_params(high), ped).check("twin_rate").passed is False
 
     def test_twin_rate_without_non_founders_is_informational(self):
         params = {**_FOUNDERS_ONLY_PARAMS, "p_mztwin": 0.05}
         ped = run_simulation(**params).pedigree
         assert (ped["twin"] != -1).any(), "fixture sanity: founders must contain twins"
-        _assert_informational(validate_twins(ped, sim_params(params), PedigreeArrays.from_frame(ped))["twin_rate"])
+        result = validate_twins(ped, sim_params(params), PedigreeArrays.from_frame(ped))
+        assert result.find("twin_rate") is None
+        assert result.measurements.twin_rate is None
 
     def test_e1_independence_without_sibling_groups_is_informational(self, val_pedigree, val_params):
         # Keep one child per mother, so no mother has two children to compare.
@@ -712,7 +716,7 @@ class TestNothingToTestIsInformational:
             subset="mother", keep="first", maintain_order=True
         )
         ped = pl.concat([founders, only_children])
-        _assert_informational(validate_statistical(ped, sim_params(val_params))["e1_independence"])
+        assert validate_statistical(ped, sim_params(val_params)).find("e1_independence") is None
 
     @pytest.mark.parametrize(
         ("assort", "traits"),
@@ -726,16 +730,9 @@ class TestNothingToTestIsInformational:
         for t in traits:
             _assert_informational(result[f"am_equilibrium_A{t}"])
 
-    def test_summary_counts_only_checks_that_ran(self, founders_only_report):
-        scored = [
-            name
-            for category, checks in founders_only_report.items()
-            if category not in ("per_generation", "summary", "family_size_distribution")
-            for name, result in checks.items()
-            if "passed" in result
-        ]
-        assert founders_only_report["summary"]["checks_total"] == len(scored)
-        assert not {name for _, name in _NOTHING_TO_TEST} & set(scored)
+    def test_rows_hold_only_checks_that_ran(self, founders_only_report):
+        scored = {row["id"] for row in founders_only_report.rows()}
+        assert not {f"{c}.{n}" for c, n in _NOTHING_TO_TEST} & scored
 
 
 class TestValidateNegativePaths:
@@ -756,7 +753,7 @@ class TestValidateNegativePaths:
         ids[5] = ids.max() + 99
         ped = _with_column_values(ped, "id", ids)
         result = validate_structural(ped, sim_params(self._tiny_params()), PedigreeArrays.from_frame(ped))
-        assert result["id_integrity"]["passed"] is False
+        assert result.check("id_integrity").passed is False
 
     def test_dangling_parent_id_fails_parent_references(self):
         ped = self._tiny_pedigree()
@@ -767,7 +764,7 @@ class TestValidateNegativePaths:
         mother[non_founder_idx] = params["N"] * params["G_ped"] + 50
         ped = _with_column_values(ped, "mother", mother)
         result = validate_structural(ped, sim_params(params), PedigreeArrays.from_frame(ped))
-        assert result["parent_references"]["passed"] is False
+        assert result.check("parent_references").passed is False
 
     def test_wrong_parent_sex_fails_sex_consistency(self):
         ped = self._tiny_pedigree()
@@ -776,7 +773,7 @@ class TestValidateNegativePaths:
         sex[ped["id"].to_numpy() == mother_id] = 1  # 1 = male
         ped = _with_column_values(ped, "sex", sex)
         result = validate_structural(ped, sim_params(self._tiny_params()), PedigreeArrays.from_frame(ped))
-        assert result["sex_parent_consistency"]["passed"] is False
+        assert result.check("sex_parent_consistency").passed is False
 
     def test_non_bidirectional_twin_fails_bidirectional_check(self):
         """A twin pointer that doesn't bounce back must fail twin_bidirectional."""
@@ -792,7 +789,7 @@ class TestValidateNegativePaths:
         params = self._tiny_params()
         params["p_mztwin"] = 0.02
         result = validate_twins(ped, sim_params(params), PedigreeArrays.from_frame(ped))
-        assert result["twin_bidirectional"]["passed"] is False
+        assert result.check("twin_bidirectional").passed is False
 
 
 def _trait_for(pedigree, seed=0):
@@ -845,19 +842,19 @@ class TestValidateOnAscertainedPedigrees:
         ids = gapped_pedigree["id"].to_numpy()
         assert ids.max() >= len(ids), "fixture must have non-contiguous ids"
         report = build_quality_report(gapped_pedigree, sim_params(val_params))
-        assert report["summary"]["checks_total"] > 0
+        assert report.rows()
 
     def test_severed_parents_do_not_raise(self, severed_pedigree, val_params):
         mother = severed_pedigree["mother"].to_numpy()
         father = severed_pedigree["father"].to_numpy()
         assert ((mother == -1) ^ (father == -1)).any(), "fixture must have one-parent rows"
         report = build_quality_report(severed_pedigree, sim_params(val_params))
-        assert report["summary"]["checks_total"] > 0
+        assert report.rows()
 
     def test_consanguinity_skips_rows_with_a_severed_parent(self, severed_pedigree, val_params):
         """A row with one parent has no complete mating, so it is not eligible."""
         result = validate_consanguineous_matings(severed_pedigree, PedigreeArrays.from_frame(severed_pedigree))
-        assert "consanguineous_count" in result
+        assert result.measurements.n_half_sib_matings is not None
 
     def test_mate_correlation_drops_pairs_with_an_absent_parent(self, severed_pedigree, val_params):
         """A row with a severed parent makes no mating pair."""

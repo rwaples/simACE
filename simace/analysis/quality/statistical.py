@@ -8,14 +8,16 @@ NumPy boundary is a deliberate contract, not a migration leftover.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from simace.core.numerics import safe_corrcoef
 
-from ._common import _corr_tolerance, _info, _result, sorted_runs
+from ._common import _corr_tolerance, sorted_runs
 from .am_relatedness import am_relatedness_mode
+from .check import FamilyResult, QualityCheck
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -26,28 +28,59 @@ if TYPE_CHECKING:
     from simace.simulation.params import SimulationParams
 
 
-def _check_variance(founders: Mapping[str, np.ndarray], col: str, expected: float, tol: float = 0.1) -> dict[str, Any]:
-    """Check that the variance of `col` in founders is close to `expected`.
+@dataclass(frozen=True)
+class FounderVariances:
+    """One trait's component and total variances in the recorded founders."""
 
-    Accumulates in float64 (matching pandas ``Series.var`` on float32 columns).
+    var_A: float
+    var_C: float
+    var_E: float
+    var_liability: float
+
+
+@dataclass(frozen=True)
+class StatisticalMeasurements:
+    """What the statistical family measures, all in the recorded founders.
+
+    Attributes:
+        traits: Each trait's variances, ``traits[t - 1]``.
+        rA: The cross-trait A correlation (NaN where undefined).
+        rC: The cross-trait C correlation.
+        rE: The cross-trait E correlation.
     """
-    var = float(np.var(founders[col], ddof=1, dtype=np.float64))
-    return _result(
+
+    traits: tuple[FounderVariances, FounderVariances]
+    rA: float
+    rC: float
+    rE: float
+
+
+def _founder_var(founders: Mapping[str, np.ndarray], col: str) -> float:
+    """Variance of ``col`` in founders, accumulated in float64 (matching pandas ``Series.var`` on float32 columns)."""
+    return float(np.var(founders[col], ddof=1, dtype=np.float64))
+
+
+def _check_variance(var: float, col: str, expected: float, tol: float = 0.1) -> QualityCheck:
+    """Check that the founders' variance ``var`` of ``col`` is close to ``expected``."""
+    return QualityCheck(
+        f"variance_{col}",
         abs(var - expected) < tol,
         f"Var({col}) in founders: {var:.4f} (expected: {expected})",
+        observed=var,
         expected=expected,
-        observed=float(var),
     )
 
 
-def validate_statistical(df: pd.DataFrame | pl.DataFrame, sim: SimulationParams) -> dict[str, Any]:
+def validate_statistical(
+    df: pd.DataFrame | pl.DataFrame, sim: SimulationParams
+) -> FamilyResult[StatisticalMeasurements]:
     """Validate statistical properties of variance components for two traits.
 
     Checks founder variances for A, C, E against configured values,
     cross-trait correlations rA and rE, C sharing within households, and E
     independence between siblings. Under assortative mating on a trait, its
-    ``Var(A)`` and the cross-trait ``rA`` are reported without being
-    asserted. The total variance and the cross-trait ``rC`` are reported
+    ``Var(A)`` and the cross-trait ``rA`` are measured without being
+    checked. The total variance and the cross-trait ``rC`` are measured
     only: `simace validate`'s ``total_variance`` and ``cross_trait_rC`` test
     them (ADR 0030).
 
@@ -57,13 +90,12 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, sim: SimulationParams)
         sim: The rep's parameters.
 
     Returns:
-        Dict of check-name to result dicts.
+        The checks, and the founders' variances and cross-trait correlations.
     """
-    results = {}
+    checks = []
 
     vc = sim.vc
     rA_param = vc.rA
-    rC_param = vc.rC
 
     mother_all = df["mother"].to_numpy()
     founder_mask = mother_all == -1
@@ -80,64 +112,61 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, sim: SimulationParams)
     # variance inflates across generations (Bulmer), so the recorded "founders"
     # (first recorded generation) no longer carry the configured A; the
     # am_equilibrium check validates that inflation instead. Skip the
-    # A-variance (and the dependent total) for any trait with active AM. C and
-    # E are unaffected (drawn fresh each generation), so they remain asserted.
+    # A-variance check for any trait with active AM. C and E are unaffected
+    # (drawn fresh each generation), so they remain checked.
     am_active = {t: am_relatedness_mode(sim.assortment, t) != "none" for t in (1, 2)}
+    variances = {col: _founder_var(founders, col) for col in comp_cols}
     for t in [1, 2]:
         for comp in ["A", "C", "E"]:
             col = f"{comp}{t}"
-            if comp == "A" and am_active[t]:
-                # Reported, not asserted: the am_equilibrium check validates the
-                # AM-inflated additive variance.
-                am_var = float(np.var(founders[col], ddof=1, dtype=np.float64))
-                results[f"variance_{col}"] = _info(
-                    f"Var({col}): {am_var:.4f} (AM-inflated; asserted by am_equilibrium)",
-                    observed=am_var,
-                )
-            else:
-                results[f"variance_{col}"] = _check_variance(founders, col, configured[col])
+            if not (comp == "A" and am_active[t]):
+                checks.append(_check_variance(variances[col], col, configured[col]))
 
-    # Total variances, reported only: `simace validate`'s total_variance tests
+    # Total variances, measured only: `simace validate`'s total_variance tests
     # them (ADR 0030). Var(A + C + E) directly, not the sum of component
     # variances, because AM with C transmission gives A and C a covariance (ADR 0025).
-    for t in [1, 2]:
-        total = float(np.var(founders[f"A{t}"] + founders[f"C{t}"] + founders[f"E{t}"], ddof=1, dtype=np.float64))
-        results[f"total_variance_trait{t}"] = _info(f"Total variance trait {t}: {total:.4f}", observed=total)
+    trait1, trait2 = (
+        FounderVariances(
+            var_A=variances[f"A{t}"],
+            var_C=variances[f"C{t}"],
+            var_E=variances[f"E{t}"],
+            var_liability=float(
+                np.var(founders[f"A{t}"] + founders[f"C{t}"] + founders[f"E{t}"], ddof=1, dtype=np.float64)
+            ),
+        )
+        for t in (1, 2)
+    )
 
     # Cross-trait correlations. Assortative mating on either trait builds
     # disequilibrium into the additive covariance as it does into Var(A), so
     # the recorded founders' rA drifts from the configured value whenever
-    # rA != 0; there is no closed-form expectation to assert it against.
+    # rA != 0; there is no closed-form expectation to check it against.
     rA_obs = safe_corrcoef(founders["A1"], founders["A2"])
-    if am_active[1] or am_active[2]:
-        results["cross_trait_rA"] = _info(
-            f"Cross-trait A correlation: {rA_obs:.4f} (configured {rA_param}; AM-shifted, not asserted under AM)",
-            observed=float(rA_obs),
-        )
-    else:
+    if not (am_active[1] or am_active[2]):
         rA_ok = abs(rA_obs - rA_param) < 0.15 if not np.isnan(rA_obs) else rA_param == 0
-        results["cross_trait_rA"] = _result(
-            rA_ok,
-            f"Cross-trait A correlation: {rA_obs:.4f} (expected: {rA_param})",
-            expected=rA_param,
-            observed=float(rA_obs),
+        checks.append(
+            QualityCheck(
+                "cross_trait_rA",
+                rA_ok,
+                f"Cross-trait A correlation: {rA_obs:.4f} (expected: {rA_param})",
+                observed=float(rA_obs),
+                expected=rA_param,
+            )
         )
-    # Reported only: `simace validate`'s cross_trait_rC tests it (ADR 0030).
+    # Measured only: `simace validate`'s cross_trait_rC tests it (ADR 0030).
     rC_obs = safe_corrcoef(founders["C1"], founders["C2"])
-    results["cross_trait_rC"] = _info(
-        f"Cross-trait C correlation: {rC_obs:.4f} (configured {rC_param})",
-        expected=rC_param,
-        observed=float(rC_obs),
-    )
 
     rE_param = vc.rE
     rE_obs = safe_corrcoef(founders["E1"], founders["E2"])
     rE_ok = abs(rE_obs - rE_param) < 0.15 if not np.isnan(rE_obs) else rE_param == 0
-    results["cross_trait_rE"] = _result(
-        rE_ok,
-        f"Cross-trait E correlation: {rE_obs:.4f} (expected: {rE_param})",
-        expected=rE_param,
-        observed=float(rE_obs),
+    checks.append(
+        QualityCheck(
+            "cross_trait_rE",
+            rE_ok,
+            f"Cross-trait E correlation: {rE_obs:.4f} (expected: {rE_param})",
+            observed=float(rE_obs),
+            expected=rE_param,
+        )
     )
 
     # C inheritance: householdmates should share C. Without paternal C
@@ -156,7 +185,6 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, sim: SimulationParams)
         col = f"C{t}"
         by_pair = sim.c_transmission.coefficients(t)[1] != 0.0
         if by_pair and not nf_mask.any():
-            results[f"c{t}_inheritance"] = _info("No non-founders to check C inheritance")
             continue
         if by_pair:
             father_nf = df["father"].to_numpy()[nf_mask].astype(np.int64)
@@ -170,13 +198,15 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, sim: SimulationParams)
         # nunique == 1 per family ⇔ group max equals group min (C is never NaN).
         c_shared = (np.maximum.reduceat(vals, t_starts) == np.minimum.reduceat(vals, t_starts)).mean()
         unit = "mating pairs" if by_pair else "households"
-        results[f"c{t}_inheritance"] = _result(
-            c_shared > 0.99,
-            f"Proportion of {unit} with shared {col}: {c_shared:.4f}",
-            proportion_shared=float(c_shared),
+        # The share stays in the message only: report.yaml has always carried
+        # this check's observed as null.
+        checks.append(
+            QualityCheck(
+                f"c{t}_inheritance", c_shared > 0.99, f"Proportion of {unit} with shared {col}: {c_shared:.4f}"
+            )
         )
 
-    # E independence between siblings
+    # E independence between siblings, when there are enough sibling pairs
     if nf_mask.any():
         multi_starts = starts[sizes >= 2]
 
@@ -194,18 +224,17 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, sim: SimulationParams)
                 # SE-based like the other correlation checks: a fixed 0.1 is
                 # only ~2.2 SE at 500 pairs and failed ~2.5% of correct reps.
                 tol = _corr_tolerance(0.0, len(e1_pairs_arr))
-                results["e1_independence"] = _result(
-                    abs(e_corr) < tol,
-                    f"E1 correlation between siblings: {e_corr:.4f} (expected: ~0, tol: {tol:.4f})",
-                    observed_correlation=float(e_corr),
-                    tolerance=tol,
-                    n_pairs=len(e1_pairs_arr),
+                checks.append(
+                    QualityCheck(
+                        "e1_independence",
+                        abs(e_corr) < tol,
+                        f"E1 correlation between siblings: {e_corr:.4f} (expected: ~0, tol: {tol:.4f})",
+                        observed=float(e_corr),
+                        tolerance=tol,
+                    )
                 )
-            else:
-                results["e1_independence"] = _info("Not enough sibling pairs to check E independence")
-        else:
-            results["e1_independence"] = _info("Not enough sibling groups to check E independence")
-    else:
-        results["e1_independence"] = _info("No non-founders to check E independence")
 
-    return results
+    measurements = StatisticalMeasurements(
+        traits=(trait1, trait2), rA=float(rA_obs), rC=float(rC_obs), rE=float(rE_obs)
+    )
+    return FamilyResult(measurements, tuple(checks))

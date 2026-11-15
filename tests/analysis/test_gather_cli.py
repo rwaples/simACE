@@ -6,6 +6,12 @@ import logging
 import pytest
 import yaml
 
+from simace.analysis.quality import FamilyResult, QualityCheck, QualityReport
+from simace.analysis.quality.consanguinity import ConsanguinityMeasurements
+from simace.analysis.quality.population import PopulationMeasurements
+from simace.analysis.quality.statistical import FounderVariances, StatisticalMeasurements
+from simace.analysis.quality.structural import StructuralMeasurements
+from simace.analysis.quality.twins import TwinMeasurements
 from simace.analysis.report import assemble_report
 from simace.analysis.sample_stats import AnalysisPedigreeStats, AnalysisSampleStats, SampleStats, ScopeSize
 
@@ -74,82 +80,88 @@ class TestCliBase:
 # gather — extract_metrics
 # ---------------------------------------------------------------------------
 
-# Minimal validation YAML matching the structure extract_metrics expects.
-_MINIMAL_VALIDATION = {
-    "parameters": {
-        "N": 1000,
-        "G_ped": 3,
-        "G_sim": 4,
-        "A1": 0.5,
-        "C1": 0.2,
-        "E1": 0.3,
-        "A2": 0.5,
-        "C2": 0.2,
-        "E2": 0.3,
-        "rA": 0.3,
-        "rC": 0.5,
-        "p_mztwin": 0.02,
-        "mating_lambda": 0.5,
-        "assort1": 0.0,
-        "assort2": 0.0,
-        "seed": 42,
-    },
-    "summary": {"checks_failed": 0},
-    "twins": {"twin_rate": {"observed_rate": 0.019}},
-    "statistical": {
-        "variance_A1": {"observed": 0.48},
-        "variance_C1": {"observed": 0.21},
-        "variance_E1": {"observed": 0.31},
-        "variance_A2": {"observed": 0.49},
-        "variance_C2": {"observed": 0.19},
-        "variance_E2": {"observed": 0.32},
-        "cross_trait_rA": {"observed": 0.29},
-        "cross_trait_rC": {"observed": 0.51},
-        "cross_trait_rE": {"observed": 0.01},
-    },
-    "heritability": {
-        "mz_twin_A1_correlation": {"observed": 0.99},
-        "mz_twin_liability1_correlation": {"observed": 0.70},
-        "mz_twin_A2_correlation": {"observed": 0.99},
-        "mz_twin_liability2_correlation": {"observed": 0.70},
-        "dz_sibling_A1_correlation": {"observed": 0.49},
-        "dz_sibling_liability1_correlation": {"observed": 0.50},
-        "dz_sibling_A2_correlation": {"observed": 0.49},
-        "dz_sibling_liability2_correlation": {"observed": 0.50},
-        "falconer_estimate_trait1": {"observed": 0.50},
-        "falconer_estimate_trait2": {"observed": 0.50},
-        "parent_offspring_A1_regression": {"slope": 0.50, "r_squared": 0.50},
-        "parent_offspring_liability1_regression": {"slope": 0.50, "r_squared": 0.50},
-        "parent_offspring_A2_regression": {"slope": 0.50, "r_squared": 0.50},
-        "parent_offspring_liability2_regression": {"slope": 0.50, "r_squared": 0.50},
-    },
-    "half_sibs": {
-        "half_sib_pair_proportion": {"observed": 0.11},
-        "offspring_with_half_sib": {"observed": 0.14},
-        "half_sib_A1_correlation": {"observed": 0.25},
-        "half_sib_liability1_correlation": {"observed": 0.25},
-        "half_sib_shared_C1": {"observed": 0.0},
-        "half_sib_A2_correlation": {"observed": 0.25},
-        "half_sib_liability2_correlation": {"observed": 0.25},
-        "half_sib_shared_C2": {"observed": 0.0},
-    },
-    "assortative_mating": {
-        "mate_corr_liability1": {"observed": 0.01},
-        "mate_corr_liability2": {"observed": -0.01},
-    },
-    "family_size_distribution": {
-        "mother": {"mean": 2.3},
-        "father": {"mean": 2.3},
-    },
+_MINIMAL_PARAMS = {
+    "N": 1000,
+    "G_ped": 3,
+    "G_sim": 4,
+    "A1": 0.5,
+    "C1": 0.2,
+    "E1": 0.3,
+    "A2": 0.5,
+    "C2": 0.2,
+    "E2": 0.3,
+    "rA": 0.3,
+    "rC": 0.5,
+    "p_mztwin": 0.02,
+    "mating_lambda": 0.5,
+    "assort1": 0.0,
+    "assort2": 0.0,
+    "seed": 42,
 }
 
-# extract_metrics reads a curated v2 report (ADR 0008). Funnel the
-# validation-shaped fixture through the real builder so registry paths line up.
+# A quality report with every measurement extract_metrics reads.
+_MINIMAL_QUALITY = QualityReport(
+    structural=FamilyResult(StructuralMeasurements(sex_ratio_male=0.5), ()),
+    twins=FamilyResult(TwinMeasurements(twin_rate=0.019, expected_twin_rate=0.0392), ()),
+    statistical=FamilyResult(
+        StatisticalMeasurements(
+            traits=(FounderVariances(0.48, 0.21, 0.31, 1.0), FounderVariances(0.49, 0.19, 0.32, 1.0)),
+            rA=0.29,
+            rC=0.51,
+            rE=0.01,
+        ),
+        (),
+    ),
+    population=FamilyResult(PopulationMeasurements(generation_sizes=[1000, 1000, 1000], n_generations=3), ()),
+    consanguineous_matings=FamilyResult(
+        ConsanguinityMeasurements(n_half_sib_matings=0, n_full_sib_matings=0, total_missing_gp_links=0),
+        (QualityCheck("grandparent_reconciliation", True, "reconciled"),),
+    ),
+    legacy={
+        "heritability": {
+            "mz_twin_A1_correlation": {"observed": 0.99},
+            "mz_twin_liability1_correlation": {"observed": 0.70},
+            "mz_twin_A2_correlation": {"observed": 0.99},
+            "mz_twin_liability2_correlation": {"observed": 0.70},
+            "dz_sibling_A1_correlation": {"observed": 0.49},
+            "dz_sibling_liability1_correlation": {"observed": 0.50},
+            "dz_sibling_A2_correlation": {"observed": 0.49},
+            "dz_sibling_liability2_correlation": {"observed": 0.50},
+            "falconer_estimate_trait1": {"observed": 0.50},
+            "falconer_estimate_trait2": {"observed": 0.50},
+            "parent_offspring_A1_regression": {"slope": 0.50, "r_squared": 0.50},
+            "parent_offspring_liability1_regression": {"slope": 0.50, "r_squared": 0.50},
+            "parent_offspring_A2_regression": {"slope": 0.50, "r_squared": 0.50},
+            "parent_offspring_liability2_regression": {"slope": 0.50, "r_squared": 0.50},
+        },
+        "half_sibs": {
+            "half_sib_pair_proportion": {"observed": 0.11},
+            "offspring_with_half_sib": {"observed": 0.14},
+            "half_sib_A1_correlation": {"observed": 0.25},
+            "half_sib_liability1_correlation": {"observed": 0.25},
+            "half_sib_shared_C1": {"observed": 0.0},
+            "half_sib_A2_correlation": {"observed": 0.25},
+            "half_sib_liability2_correlation": {"observed": 0.25},
+            "half_sib_shared_C2": {"observed": 0.0},
+        },
+        "assortative_mating": {
+            "mate_corr_liability1": {"observed": 0.01},
+            "mate_corr_liability2": {"observed": -0.01},
+        },
+        "c_transmission": {},
+        "am_equilibrium": {},
+    },
+    per_generation={},
+    family_size_distribution={"mother": {"mean": 2.3}, "father": {"mean": 2.3}},
+)
+
+# extract_metrics reads a curated v2 report (ADR 0008). Funnel the fixture
+# through the real builder so registry paths line up.
 _MINIMAL_REPORT, _ = assemble_report(
     replicate={"folder": "base", "scenario": "minimal", "rep": 1, "seed": 42},
-    params=_MINIMAL_VALIDATION["parameters"],
+    params=_MINIMAL_PARAMS,
     case_ascertainment_ratio=1.0,
-    quality_report=_MINIMAL_VALIDATION,
+    quality=_MINIMAL_QUALITY,
     stats=SampleStats(
         sample_size=ScopeSize(n_individuals=0, n_generations=0),
         pedigree_size=ScopeSize(n_individuals=0, n_generations=0),

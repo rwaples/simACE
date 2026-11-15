@@ -88,8 +88,8 @@ class TestIntegration:
         p = _params()
         df = run_simulation(**p).pedigree
         rep = build_quality_report(df, sim_params(p))
-        fs = rep["heritability"]["dz_sibling_A1_correlation"]
-        hs = rep["half_sibs"]["half_sib_A1_correlation"]
+        fs = rep.legacy["heritability"]["dz_sibling_A1_correlation"]
+        hs = rep.legacy["half_sibs"]["half_sib_A1_correlation"]
         assert fs.get("informational") is True
         assert "passed" not in fs
         assert hs.get("informational") is True
@@ -107,8 +107,8 @@ class TestIntegration:
         p = _params(assort1=0.0)
         df = run_simulation(**p).pedigree
         rep = build_quality_report(df, sim_params(p))
-        assert rep["heritability"]["dz_sibling_A1_correlation"]["expected"] == pytest.approx(0.5)
-        assert rep["half_sibs"]["half_sib_A1_correlation"]["expected"] == pytest.approx(0.25)
+        assert rep.legacy["heritability"]["dz_sibling_A1_correlation"]["expected"] == pytest.approx(0.5)
+        assert rep.legacy["half_sibs"]["half_sib_A1_correlation"]["expected"] == pytest.approx(0.25)
 
     def test_bivariate_am_reports_but_does_not_assert(self):
         """Under both-trait AM the single-trait formula does not apply, so FS/HS
@@ -116,8 +116,8 @@ class TestIntegration:
         p = _params(assort2=0.5)
         df = run_simulation(**p).pedigree
         rep = build_quality_report(df, sim_params(p))
-        fs = rep["heritability"]["dz_sibling_A1_correlation"]
-        hs = rep["half_sibs"]["half_sib_A1_correlation"]
+        fs = rep.legacy["heritability"]["dz_sibling_A1_correlation"]
+        hs = rep.legacy["half_sibs"]["half_sib_A1_correlation"]
         # informational: no "passed" key, observed value still reported
         assert "passed" not in fs
         assert fs.get("informational") is True
@@ -138,17 +138,15 @@ class TestIntegration:
         assert repr(reports[0]) == repr(reports[1])  # repr: NaN observations compare equal
 
     def test_variance_a_reported_informational_under_am(self):
-        """variance_A is reported (not asserted) under AM; C/E stay scored."""
+        """variance_A is measured (not checked) under AM; C/E stay checked."""
         p = _params()
         df = run_simulation(**p).pedigree
-        rep = build_quality_report(df, sim_params(p))
-        v_a = rep["statistical"]["variance_A1"]
-        assert "passed" not in v_a
-        assert v_a.get("informational") is True
-        assert "observed" in v_a
-        # the non-assorting trait and the C/E components remain scored
-        assert "passed" in rep["statistical"]["variance_C1"]
-        assert "passed" in rep["statistical"]["variance_A2"]
+        statistical = build_quality_report(df, sim_params(p)).statistical
+        assert statistical.find("variance_A1") is None
+        assert statistical.measurements.traits[0].var_A > 0
+        # the non-assorting trait and the C/E components remain checked
+        assert statistical.find("variance_C1") is not None
+        assert statistical.find("variance_A2") is not None
 
     def test_falconer_asserts_am_biased_value(self):
         """Under single-trait AM Falconer is scored against the AM-biased value
@@ -156,7 +154,7 @@ class TestIntegration:
         p = _params(p_mztwin=0.05, G_ped=12, G_sim=12, assort1=0.6)
         df = run_simulation(**p).pedigree
         rep = build_quality_report(df, sim_params(p))
-        fal = rep["heritability"]["falconer_estimate_trait1"]
+        fal = rep.legacy["heritability"]["falconer_estimate_trait1"]
         assert fal["passed"], fal["details"]
         assert "AM-biased" in fal["details"]
         assert fal["expected"] < p["A1"]  # downward AM bias
@@ -164,12 +162,12 @@ class TestIntegration:
     def test_genetic_mate_correlation_reported(self):
         """validate_assortative_mating emits the genetic mate correlation mu_A."""
         p = _params(assort1=0.6)
-        am = build_quality_report(run_simulation(**p).pedigree, sim_params(p))["assortative_mating"]
+        am = build_quality_report(run_simulation(**p).pedigree, sim_params(p)).legacy["assortative_mating"]
         assert "mate_corr_A1" in am
         assert am["mate_corr_A1"]["observed"] > 0.1  # AM induces genetic mate corr
 
         p0 = _params(assort1=0.0)
-        am0 = build_quality_report(run_simulation(**p0).pedigree, sim_params(p0))["assortative_mating"]
+        am0 = build_quality_report(run_simulation(**p0).pedigree, sim_params(p0)).legacy["assortative_mating"]
         assert abs(am0["mate_corr_A1"]["observed"]) < 0.1  # no AM -> ~0
 
     def test_observed_mate_correlations_positive_under_am(self):

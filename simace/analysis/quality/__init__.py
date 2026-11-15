@@ -26,6 +26,7 @@ Public API is re-exported from focused sub-modules (mirrors
 from .am_equilibrium import validate_am_equilibrium
 from .assortative_mating import validate_assortative_mating
 from .c_transmission import validate_c_transmission
+from .check import FamilyResult, QualityCheck
 from .consanguinity import validate_consanguineous_matings
 from .half_sibs import validate_half_sibs
 from .heritability import validate_heritability
@@ -34,12 +35,15 @@ from .population import (
     compute_per_generation_stats,
     validate_population,
 )
-from .runner import build_quality_report
+from .runner import QualityReport, build_quality_report
 from .statistical import validate_statistical
 from .structural import validate_structural
 from .twins import validate_twins
 
 __all__ = [
+    "FamilyResult",
+    "QualityCheck",
+    "QualityReport",
     "build_quality_report",
     "compute_family_size_distribution",
     "compute_per_generation_stats",

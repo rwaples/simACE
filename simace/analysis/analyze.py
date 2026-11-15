@@ -114,7 +114,7 @@ def run_analysis(
     logger.info("Analyze phase 1/3: quality checks and truth on %s", pedigree_path)
     df_full = read_pedigree(pedigree_path)
     graph = PedigreeGraph.from_frame(df_full)
-    quality_report = build_quality_report(df_full, sim, graph)
+    quality = build_quality_report(df_full, sim, graph)
     recorded_truth = recorded_pedigree_truth(
         df_full, sim, max_degree, clips=read_c_transmission_clips(pedigree_path), graph=graph
     )
@@ -162,7 +162,7 @@ def run_analysis(
         replicate={"folder": folder, "scenario": scenario, "rep": rep, "seed": seed},
         params=params,
         case_ascertainment_ratio=case_ascertainment_ratio,
-        quality_report=quality_report,
+        quality=quality,
         stats=stats,
         prevalence_phenotyped=prevalence_phenotyped,
         scope_counts=scope_counts,

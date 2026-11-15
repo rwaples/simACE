@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from ._common import _info, _result
+from .check import FamilyResult, QualityCheck
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -15,7 +16,27 @@ if TYPE_CHECKING:
     from simace.core.pedigree_arrays import PedigreeArrays
 
 
-def validate_consanguineous_matings(df: pd.DataFrame | pl.DataFrame, ped: PedigreeArrays) -> dict[str, Any]:
+@dataclass(frozen=True)
+class ConsanguinityMeasurements:
+    """What the consanguinity family measures; every field is ``None`` when no one has grandparents in the pedigree.
+
+    Attributes:
+        n_half_sib_matings: Mating pairs whose partners share one parent.
+        n_full_sib_matings: Mating pairs whose partners share both parents.
+        total_missing_gp_links: Grandparent links short of four per grandchild.
+    """
+
+    n_half_sib_matings: int | None
+    n_full_sib_matings: int | None
+    total_missing_gp_links: int | None
+
+
+_NO_GRANDCHILDREN = ConsanguinityMeasurements(None, None, None)
+
+
+def validate_consanguineous_matings(
+    df: pd.DataFrame | pl.DataFrame, ped: PedigreeArrays
+) -> FamilyResult[ConsanguinityMeasurements]:
     """Detect consanguineous matings and reconcile grandparent-link discrepancy.
 
     When ``pair_partners()`` randomly pairs individuals, half-siblings (or
@@ -34,10 +55,9 @@ def validate_consanguineous_matings(df: pd.DataFrame | pl.DataFrame, ped: Pedigr
         ped: The same pedigree as id-addressable arrays.
 
     Returns:
-        Dict of check-name to result dicts.
+        The consanguineous-mating counts and the grandparent reconciliation
+        check, which runs only when someone has grandparents in the pedigree.
     """
-    results: dict[str, Any] = {}
-
     ids = ped["id"]
     mothers = ped["mother"]
     fathers = ped["father"]
@@ -59,8 +79,7 @@ def validate_consanguineous_matings(df: pd.DataFrame | pl.DataFrame, ped: Pedigr
     eligible_fathers = fathers[eligible]
 
     if len(eligible_ids) == 0:
-        results["consanguineous_count"] = _info("No individuals with grandparents in pedigree")
-        return results
+        return FamilyResult(_NO_GRANDCHILDREN, ())
 
     # Look up all 4 grandparents for eligible individuals
     mgm = ped.gather("mother", eligible_mothers)  # maternal grandmother
@@ -94,25 +113,18 @@ def validate_consanguineous_matings(df: pd.DataFrame | pl.DataFrame, ped: Pedigr
     n_full_sib_matings = int((shared_count == 2).sum())
     explained_missing = int((shared_count[is_consanguineous] * pair_counts[is_consanguineous]).sum())
 
-    # Informational: report counts
-    results["consanguineous_count"] = _info(
-        f"Consanguineous matings: {n_half_sib_matings} half-sib, "
-        f"{n_full_sib_matings} full-sib "
-        f"(total missing GP links: {total_missing})",
+    counts = ConsanguinityMeasurements(
         n_half_sib_matings=n_half_sib_matings,
         n_full_sib_matings=n_full_sib_matings,
         total_missing_gp_links=total_missing,
     )
-
-    # Hard check: reconciliation
     reconciled = explained_missing == total_missing
-    results["grandparent_reconciliation"] = _result(
+    reconciliation = QualityCheck(
+        "grandparent_reconciliation",
         reconciled,
         f"Grandparent links: expected={expected_gp_links}, observed={observed_gp_links}, "
         f"explained_missing={explained_missing}, actual_missing={total_missing}",
-        expected_gp_links=expected_gp_links,
-        observed_gp_links=observed_gp_links,
-        explained_missing=explained_missing,
+        observed=observed_gp_links,
+        expected=expected_gp_links,
     )
-
-    return results
+    return FamilyResult(counts, (reconciliation,))

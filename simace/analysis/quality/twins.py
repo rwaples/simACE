@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from ._common import _info, _result
+from .check import FamilyResult, QualityCheck
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -16,7 +17,24 @@ if TYPE_CHECKING:
     from simace.simulation.params import SimulationParams
 
 
-def validate_twins(df: pd.DataFrame | pl.DataFrame, sim: SimulationParams, ped: PedigreeArrays) -> dict[str, Any]:
+@dataclass(frozen=True)
+class TwinMeasurements:
+    """What the twin family measures.
+
+    Attributes:
+        twin_rate: The share of non-founders who are MZ twins; ``0.0`` with no
+            twins at all, ``None`` when twins exist but no non-founder does.
+        expected_twin_rate: Its expectation ``2q``; ``None`` exactly when
+            ``twin_rate`` is.
+    """
+
+    twin_rate: float | None
+    expected_twin_rate: float | None
+
+
+def validate_twins(
+    df: pd.DataFrame | pl.DataFrame, sim: SimulationParams, ped: PedigreeArrays
+) -> FamilyResult[TwinMeasurements]:
     """Validate MZ twin properties for two-trait simulation.
 
     Checks bidirectional twin pointers, shared parents, identical A values
@@ -37,9 +55,10 @@ def validate_twins(df: pd.DataFrame | pl.DataFrame, sim: SimulationParams, ped: 
         ped: The same pedigree as id-addressable arrays.
 
     Returns:
-        Dict of check-name to result dicts.
+        The checks and the twin rate. With no twin records only the rate is
+        checked; with no non-founders it is not checked.
     """
-    results = {}
+    checks = []
     p_mztwin = sim.p_mztwin
     is_wf = sim.mating_model == "wright_fisher"
     pair_share = 0.0 if is_wf else float(p_mztwin) / (1 + float(p_mztwin))
@@ -51,13 +70,7 @@ def validate_twins(df: pd.DataFrame | pl.DataFrame, sim: SimulationParams, ped: 
     n_twins = int(twin_mask.sum())
 
     if n_twins == 0:
-        no_twins_msg = "No twins expected under mating_model=wright_fisher" if is_wf else "No twins found"
         # No twin records, so the structural twin checks have nothing to test.
-        results["twin_bidirectional"] = _info(no_twins_msg)
-        results["twin_same_parents"] = _info(no_twins_msg)
-        for t in [1, 2]:
-            results[f"twin_same_A{t}"] = _info(no_twins_msg)
-        results["twin_same_sex"] = _info(no_twins_msg)
         # The rate is still tested: zero twins is the WF invariant, and under
         # standard mating it fails unless p_mztwin is small enough that zero
         # observed twins is plausible.
@@ -67,13 +80,8 @@ def validate_twins(df: pd.DataFrame | pl.DataFrame, sim: SimulationParams, ped: 
             if is_wf
             else f"No twins found, expected rate: {p_mztwin}"
         )
-        results["twin_rate"] = _result(
-            rate_pass,
-            rate_msg,
-            expected_rate=expected_rate,
-            observed_rate=0.0,
-        )
-        return results
+        rate = QualityCheck("twin_rate", rate_pass, rate_msg, observed=0.0, expected=expected_rate)
+        return FamilyResult(TwinMeasurements(twin_rate=0.0, expected_twin_rate=expected_rate), (rate,))
 
     # Get unique twin pairs
     twin_ids = id_all[twin_mask]
@@ -87,9 +95,12 @@ def validate_twins(df: pd.DataFrame | pl.DataFrame, sim: SimulationParams, ped: 
     # way the reindex it replaces did: absent means the check simply fails.
     partners_present = ped.contains(t2_arr)
     bidirectional = bool(partners_present.all()) and np.all(ped.gather("twin", t2_arr) == t1_arr)
-    results["twin_bidirectional"] = _result(
-        bool(bidirectional),
-        f"All {n_twins} twin references are bidirectional: {bidirectional}",
+    checks.append(
+        QualityCheck(
+            "twin_bidirectional",
+            bool(bidirectional),
+            f"All {n_twins} twin references are bidirectional: {bidirectional}",
+        )
     )
 
     # Same parents
@@ -98,9 +109,8 @@ def validate_twins(df: pd.DataFrame | pl.DataFrame, sim: SimulationParams, ped: 
     t1_father = ped.gather("father", t1_arr)
     t2_father = ped.gather("father", t2_arr)
     same_parents = np.all((t1_mother == t2_mother) & (t1_father == t2_father))
-    results["twin_same_parents"] = _result(
-        bool(same_parents),
-        f"All {n_pairs} twin pairs share parents: {same_parents}",
+    checks.append(
+        QualityCheck("twin_same_parents", bool(same_parents), f"All {n_pairs} twin pairs share parents: {same_parents}")
     )
 
     # Same A values and same sex - loop over traits for A
@@ -109,19 +119,15 @@ def validate_twins(df: pd.DataFrame | pl.DataFrame, sim: SimulationParams, ped: 
         v1 = ped.gather(col, t1_arr)
         v2 = ped.gather(col, t2_arr)
         same = np.allclose(v1, v2)
-        results[f"twin_same_{col}"] = _result(
-            bool(same),
-            f"All MZ twin pairs have identical {col} values: {same}",
+        checks.append(
+            QualityCheck(f"twin_same_{col}", bool(same), f"All MZ twin pairs have identical {col} values: {same}")
         )
 
     # Same sex
     t1_sex = ped.gather("sex", t1_arr)
     t2_sex = ped.gather("sex", t2_arr)
     same_sex = np.all(t1_sex == t2_sex)
-    results["twin_same_sex"] = _result(
-        bool(same_sex),
-        f"All MZ twin pairs have same sex: {same_sex}",
-    )
+    checks.append(QualityCheck("twin_same_sex", bool(same_sex), f"All MZ twin pairs have same sex: {same_sex}"))
 
     # Twin rate (count only non-founder twin pairs; founders have twins but no parents in pedigree)
     nf_mask = df["mother"].to_numpy() != -1
@@ -148,14 +154,11 @@ def validate_twins(df: pd.DataFrame | pl.DataFrame, sim: SimulationParams, ped: 
                 f"Twin rate in non-founders: {observed_rate:.4f} (expected {expected_rate:.4f} "
                 f"from p_mztwin={p_mztwin:.4f}; {nf_pairs} pairs, tol ±{pair_tol:.1f})"
             )
-        results["twin_rate"] = _result(
-            rate_ok,
-            rate_msg,
-            expected_rate=expected_rate,
-            observed_rate=float(observed_rate),
-            twin_pairs=nf_pairs,
+        checks.append(
+            QualityCheck("twin_rate", rate_ok, rate_msg, observed=float(observed_rate), expected=expected_rate)
         )
+        measurements = TwinMeasurements(twin_rate=float(observed_rate), expected_twin_rate=expected_rate)
     else:
-        results["twin_rate"] = _info("No non-founders to check twin rate")
+        measurements = TwinMeasurements(twin_rate=None, expected_twin_rate=None)
 
-    return results
+    return FamilyResult(measurements, tuple(checks))

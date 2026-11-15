@@ -23,64 +23,23 @@ from .report_schema import (
 )
 
 if TYPE_CHECKING:
+    from .quality.runner import QualityReport
     from .sample_stats import SampleStats
 
-# Skip these when normalizing quality checks — they carry no pass/fail rows.
-_NON_CHECK_CATEGORIES = frozenset({"per_generation", "summary", "family_size_distribution"})
 
-
-def _single(result: dict[str, Any], prefix: str) -> Any:
-    """Return the value of the one key starting with ``prefix`` (or None).
-
-    Validator results carry at most one ``observed_*`` / ``expected_*`` field
-    each, so a uniform check row can record it unambiguously. If a result ever
-    grows two matching keys, picking one by dict order would be silently
-    arbitrary — raise instead so the field map is made explicit.
-    """
-    hits = [value for key, value in result.items() if key.startswith(prefix)]
-    if len(hits) > 1:
-        matched = sorted(k for k in result if k.startswith(prefix))
-        raise ValueError(f"Ambiguous {prefix!r} fields in check result: {matched}")
-    return hits[0] if hits else None
-
-
-def normalize_quality_checks(quality_report: dict[str, Any]) -> dict[str, Any]:
-    """Flatten heterogeneous quality-check results into uniform check rows.
+def normalize_quality_checks(quality: QualityReport) -> dict[str, Any]:
+    """The ``quality_checks`` group: one uniform row per quality check, and their tally.
 
     All quality checks run on the full pre-ascertainment pedigree, so every
-    row carries ``scope="recorded_pedigree"``. The current validator has no
-    warn level, so ``n_warn`` is always 0.
+    row carries ``scope="recorded_pedigree"``. No check has a warn level, so
+    ``n_warn`` is always 0.
     """
-    checks: list[dict[str, Any]] = []
-    n_passed = 0
-    n_failed = 0
-    for category, items in quality_report.items():
-        if category in _NON_CHECK_CATEGORIES or not isinstance(items, dict):
-            continue
-        for name, result in items.items():
-            # Skip informational metrics (no closed-form pass/fail): those
-            # flagged via validate._info, or any dict lacking a ``passed`` key.
-            if not isinstance(result, dict) or result.get("informational") or "passed" not in result:
-                continue
-            passed = bool(result["passed"])
-            n_passed += passed
-            n_failed += not passed
-            checks.append(
-                {
-                    "id": f"{category}.{name}",
-                    "scope": "recorded_pedigree",
-                    "severity": "error",
-                    "status": "pass" if passed else "fail",
-                    "observed": _single(result, "observed"),
-                    "expected": _single(result, "expected"),
-                    "tolerance": result.get("tolerance"),
-                    "message": result.get("details"),
-                }
-            )
+    checks = quality.rows()
+    n_failed = sum(row["status"] == "fail" for row in checks)
     return {
         "summary": {
             "passed": n_failed == 0,
-            "n_passed": n_passed,
+            "n_passed": len(checks) - n_failed,
             "n_failed": n_failed,
             "n_warn": 0,
         },
@@ -89,7 +48,7 @@ def normalize_quality_checks(quality_report: dict[str, Any]) -> dict[str, Any]:
 
 
 def extract_truth(
-    quality_report: dict[str, Any], params: dict[str, Any], recorded_truth: dict[str, Any] | None = None
+    quality: QualityReport, params: dict[str, Any], recorded_truth: dict[str, Any] | None = None
 ) -> dict[str, Any]:
     """Re-home generated/realized ground-truth quantities under ``recorded_pedigree``.
 
@@ -98,25 +57,23 @@ def extract_truth(
     ``relationships`` and ``midparent_slope`` join each trait, and its
     ``limitations`` list sits beside the traits (ADR 0025).
     """
-    stat = quality_report.get("statistical", {})
-    per_gen = quality_report.get("per_generation", {})
-    pop = quality_report.get("population", {})
-    twins = quality_report.get("twins", {})
-    half = quality_report.get("half_sibs", {})
-    am = quality_report.get("assortative_mating", {})
-    cons = quality_report.get("consanguineous_matings", {})
-    structural = quality_report.get("structural", {})
+    stat = quality.statistical.measurements
+    per_gen = quality.per_generation
+    pop = quality.population.measurements
+    twins = quality.twins.measurements
+    half = quality.legacy["half_sibs"]
+    am = quality.legacy["assortative_mating"]
+    cons = quality.consanguineous_matings
+    reconciliation = cons.find("grandparent_reconciliation")
 
     def obs(group: dict[str, Any], key: str) -> Any:
         return (group.get(key) or {}).get("observed")
 
     traits: dict[str, Any] = {}
     for t in (1, 2):
-        var_a = obs(stat, f"variance_A{t}")
-        var_c = obs(stat, f"variance_C{t}")
-        var_e = obs(stat, f"variance_E{t}")
-        var_liability = obs(stat, f"total_variance_trait{t}")
-        h2 = var_a / var_liability if (var_a is not None and var_liability) else None
+        founders = stat.traits[t - 1]
+        var_a, var_c, var_e, var_liability = founders.var_A, founders.var_C, founders.var_E, founders.var_liability
+        h2 = var_a / var_liability if var_liability else None
         realized_by_generation = {
             gen: {
                 "n": g.get("n"),
@@ -153,26 +110,22 @@ def extract_truth(
             "shared_C": obs(half, f"half_sib_shared_C{t}"),
         }
 
-    cons_count = cons.get("consanguineous_count") or {}
     family_structure = {
-        "twin_rate": {
-            "observed": (twins.get("twin_rate") or {}).get("observed_rate"),
-            "expected": (twins.get("twin_rate") or {}).get("expected_rate"),
-        },
+        "twin_rate": {"observed": twins.twin_rate, "expected": twins.expected_twin_rate},
         "half_sibs": half_sibs,
         "consanguineous_matings": {
-            "n_half_sib_matings": cons_count.get("n_half_sib_matings"),
-            "n_full_sib_matings": cons_count.get("n_full_sib_matings"),
-            "total_missing_gp_links": cons_count.get("total_missing_gp_links"),
-            "grandparent_reconciliation_passed": (cons.get("grandparent_reconciliation") or {}).get("passed"),
+            "n_half_sib_matings": cons.measurements.n_half_sib_matings,
+            "n_full_sib_matings": cons.measurements.n_full_sib_matings,
+            "total_missing_gp_links": cons.measurements.total_missing_gp_links,
+            "grandparent_reconciliation_passed": None if reconciliation is None else reconciliation.passed,
         },
-        "offspring_distribution": quality_report.get("family_size_distribution", {}),
+        "offspring_distribution": quality.family_size_distribution,
     }
 
     population = {
-        "generation_sizes": obs(pop, "generation_sizes"),
-        "n_generations": obs(pop, "generation_count"),
-        "sex_ratio_male": (structural.get("sex_distribution") or {}).get("observed_ratio"),
+        "generation_sizes": pop.generation_sizes,
+        "n_generations": pop.n_generations,
+        "sex_ratio_male": quality.structural.measurements.sex_ratio_male,
     }
 
     recorded: dict[str, Any] = {}
@@ -189,11 +142,7 @@ def extract_truth(
             "population": population,
             "traits": traits,
             "family_structure": family_structure,
-            "cross_trait": {
-                "rA": obs(stat, "cross_trait_rA"),
-                "rC": obs(stat, "cross_trait_rC"),
-                "rE": obs(stat, "cross_trait_rE"),
-            },
+            "cross_trait": {"rA": stat.rA, "rC": stat.rC, "rE": stat.rE},
             "assortative_mating": {
                 "mate_corr_liability1": obs(am, "mate_corr_liability1"),
                 "mate_corr_liability2": obs(am, "mate_corr_liability2"),
@@ -204,9 +153,9 @@ def extract_truth(
     }
 
 
-def extract_estimators(quality_report: dict[str, Any], observed_h2_estimators: dict[str, Any]) -> dict[str, Any]:
+def extract_estimators(quality: QualityReport, observed_h2_estimators: dict[str, Any]) -> dict[str, Any]:
     """Heritability estimators: relationship/outcome-derived, by scale."""
-    her = quality_report.get("heritability", {})
+    her = quality.legacy["heritability"]
 
     def obs(key: str) -> Any:
         return (her.get(key) or {}).get("observed")
@@ -280,7 +229,7 @@ def assemble_report(
     replicate: dict[str, Any],
     params: dict[str, Any],
     case_ascertainment_ratio: float,
-    quality_report: dict[str, Any],
+    quality: QualityReport,
     stats: SampleStats,
     prevalence_phenotyped: dict[str, Any],
     scope_counts: dict[str, Any],
@@ -313,10 +262,10 @@ def assemble_report(
         "replicate": replicate,
         "inputs": _build_inputs(params, case_ascertainment_ratio),
         "scopes": scope_counts,
-        "quality_checks": normalize_quality_checks(quality_report),
-        "truth": extract_truth(quality_report, params, recorded_truth),
+        "quality_checks": normalize_quality_checks(quality),
+        "truth": extract_truth(quality, params, recorded_truth),
         "observed": observed,
-        "estimators": extract_estimators(quality_report, stats.observed_h2_estimators),
+        "estimators": extract_estimators(quality, stats.observed_h2_estimators),
     }
     assert_report_contract(report)
 

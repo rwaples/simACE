@@ -8,11 +8,12 @@ NumPy boundary is a deliberate contract, not a migration leftover.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from ._common import _info, _result
+from .check import FamilyResult, QualityCheck
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -79,7 +80,20 @@ def compute_per_generation_stats(df: _Frame, sim: SimulationParams) -> dict[str,
     return results
 
 
-def validate_population(df: _Frame, sim: SimulationParams) -> dict[str, Any]:
+@dataclass(frozen=True)
+class PopulationMeasurements:
+    """What the population family measures.
+
+    Attributes:
+        generation_sizes: Individuals per generation's id range, one per recorded generation.
+        n_generations: The number of distinct ``generation`` labels.
+    """
+
+    generation_sizes: list[int]
+    n_generations: int
+
+
+def validate_population(df: _Frame, sim: SimulationParams) -> FamilyResult[PopulationMeasurements]:
     """Validate population-level properties.
 
     Checks that each generation's id range holds exactly ``N`` individuals,
@@ -92,9 +106,10 @@ def validate_population(df: _Frame, sim: SimulationParams) -> dict[str, Any]:
         sim: The rep's parameters.
 
     Returns:
-        Dict of check-name to result dicts.
+        The checks and the generation sizes. The family size is checked only
+        when the pedigree has non-founders.
     """
-    results = {}
+    checks = []
     N = sim.N
     ngen = sim.span.G_ped
 
@@ -102,22 +117,28 @@ def validate_population(df: _Frame, sim: SimulationParams) -> dict[str, Any]:
     gen_sizes = np.bincount(gen_assignments, minlength=ngen)[:ngen].tolist()
 
     all_correct = all(s == N for s in gen_sizes)
-    results["generation_sizes"] = _result(
-        all_correct,
-        f"Generation sizes: {gen_sizes} (expected: {N} each)",
-        expected=N,
-        observed=gen_sizes,
+    checks.append(
+        QualityCheck(
+            "generation_sizes",
+            all_correct,
+            f"Generation sizes: {gen_sizes} (expected: {N} each)",
+            observed=gen_sizes,
+            expected=N,
+        )
     )
 
     # The ``generation`` column, not the id ranges above: a correct pedigree
     # labels its G_ped recorded generations 0..G_ped-1 with none missing.
     generations = np.sort(df["generation"].to_numpy())
     labels = generations[np.r_[True, generations[1:] != generations[:-1]]].tolist() if generations.size else []
-    results["generation_count"] = _result(
-        labels == list(range(ngen)),
-        f"Generation labels: {_label_summary(labels)} (expected: 0..{ngen - 1})",
-        expected=ngen,
-        observed=len(labels),
+    checks.append(
+        QualityCheck(
+            "generation_count",
+            labels == list(range(ngen)),
+            f"Generation labels: {_label_summary(labels)} (expected: 0..{ngen - 1})",
+            observed=len(labels),
+            expected=ngen,
+        )
     )
 
     mothers_all = df["mother"].to_numpy()
@@ -128,16 +149,17 @@ def validate_population(df: _Frame, sim: SimulationParams) -> dict[str, Any]:
         # Mean offspring per mother is ~N / n_mothers ~= 2.0 for balanced sex
         expected_mean = 2.0
         fam_ok = abs(mean_fam - expected_mean) < expected_mean * 0.5
-        results["family_size"] = _result(
-            fam_ok,
-            f"Mean offspring per mother: {mean_fam:.2f} (expected: ~{expected_mean:.1f})",
-            expected=expected_mean,
-            observed=float(mean_fam),
+        checks.append(
+            QualityCheck(
+                "family_size",
+                fam_ok,
+                f"Mean offspring per mother: {mean_fam:.2f} (expected: ~{expected_mean:.1f})",
+                observed=float(mean_fam),
+                expected=expected_mean,
+            )
         )
-    else:
-        results["family_size"] = _info("No non-founders to check family size")
 
-    return results
+    return FamilyResult(PopulationMeasurements(generation_sizes=gen_sizes, n_generations=len(labels)), tuple(checks))
 
 
 def _label_summary(labels: list[int]) -> str:
