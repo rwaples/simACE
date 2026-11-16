@@ -152,7 +152,7 @@ def test_total_variance_is_the_variance_of_the_sum(am_pedigree):
     assert result.measurements.traits[0].var_liability == pytest.approx(direct)
 
 
-def test_phs_shared_c_reports_bf_squared_under_the_gate(rm_pedigree, am_pedigree):
+def test_phs_shared_c_measures_bf_squared(rm_pedigree, am_pedigree):
     params = _params(**_CT)
     result = validate_half_sibs(
         rm_pedigree,
@@ -161,22 +161,20 @@ def test_phs_shared_c_reports_bf_squared_under_the_gate(rm_pedigree, am_pedigree
         mate_correlations(rm_pedigree, mate_pedigree(rm_pedigree)),
     )
     shared = result.measurements.traits[0].shared_C
-    assert shared.expected == pytest.approx(0.09)
     assert result.checks == ()
-    assert shared.observed == pytest.approx(0.09, abs=0.05)
+    assert shared.observed == pytest.approx(0.09, abs=0.05)  # b_f**2
     am = validate_half_sibs(
         am_pedigree,
         sim_params(_params(assort1=0.3, **_CT)),
         sibling_moments(am_pedigree, PedigreeArrays.from_frame(am_pedigree)),
         mate_correlations(am_pedigree, mate_pedigree(am_pedigree)),
     )
-    assert am.measurements.traits[0].shared_C.expected is None
+    assert am.measurements.traits[0].shared_C is not None
 
 
-def test_am_equilibrium_is_measured_not_checked_under_transmission(am_pedigree):
+def test_am_equilibrium_is_not_checked_under_transmission(am_pedigree):
     result = validate_am_equilibrium(am_pedigree, sim_params(_params(assort1=0.3, **_CT)))
     assert result.find("am_equilibrium_A1") is None
-    assert result.measurements.final_var_A[0] is not None
 
 
 def test_sibling_e_independence_uses_an_se_based_tolerance():

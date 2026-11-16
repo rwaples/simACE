@@ -26,7 +26,7 @@ Public API is re-exported from focused sub-modules (mirrors
 from .am_equilibrium import validate_am_equilibrium
 from .assortative_mating import validate_assortative_mating
 from .c_transmission import validate_c_transmission
-from .check import FamilyResult, MateTerms, PairCorrelation, QualityCheck
+from .check import FamilyResult, PairCorrelation, QualityCheck
 from .consanguinity import validate_consanguineous_matings
 from .half_sibs import validate_half_sibs
 from .heritability import validate_heritability
@@ -42,7 +42,6 @@ from .twins import validate_twins
 
 __all__ = [
     "FamilyResult",
-    "MateTerms",
     "PairCorrelation",
     "QualityCheck",
     "QualityReport",

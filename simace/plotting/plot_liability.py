@@ -756,7 +756,8 @@ def plot_mate_correlation(
     all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
-    sim: SimulationParams | None = None,
+    *,
+    sim: SimulationParams,
 ) -> None:
     """Plot 2x2 heatmap of empirical mate liability correlations with expected values.
 
@@ -779,7 +780,7 @@ def plot_mate_correlation(
 
     obs = np.nanmean(np.stack(matrices), axis=0)
 
-    matings = recorded_matings(sim.span, sim.vc, sim.assortment) if sim is not None else []
+    matings = recorded_matings(sim.span, sim.vc, sim.assortment)
     targets = np.stack([m.expected for m in matings]) if matings else np.zeros((1, 2, 2))
     exp_lo, exp_hi = targets.min(axis=0), targets.max(axis=0)
     exp = (exp_lo + exp_hi) / 2

@@ -1,7 +1,5 @@
 """Tests for AM-aware additive-genetic relative correlations."""
 
-import math
-
 import pytest
 
 from simace.analysis.mate_correlation import mate_pedigree
@@ -85,43 +83,6 @@ def _params(**over):
 
 
 class TestIntegration:
-    def test_single_trait_am_fs_hs_are_reported_with_inflated_expectations(self):
-        """Measured, not checked: `simace validate`'s mendelian_residual tests the inheritance (ADR 0029)."""
-        p = _params()
-        df = run_simulation(**p).pedigree
-        rep = build_quality_report(df, sim_params(p))
-        fs = rep.heritability.measurements.traits[0].dz_A_corr
-        hs = rep.half_sibs.measurements.traits[0].A_corr
-        assert rep.half_sibs.checks == ()
-        assert fs.observed == pytest.approx(fs.expected, abs=0.05)
-        assert hs.observed == pytest.approx(hs.expected, abs=0.05)
-        # AM-aware expected values exceed the random-mating relatedness
-        assert fs.expected > 0.5
-        assert hs.expected > 0.25
-        # data-anchored mate correlations are recorded
-        assert fs.mate_terms.mu_A > 0.0
-        assert hs.mate_terms is not None
-
-    def test_no_am_keeps_random_mating_expectation(self):
-        p = _params(assort1=0.0)
-        df = run_simulation(**p).pedigree
-        rep = build_quality_report(df, sim_params(p))
-        assert rep.heritability.measurements.traits[0].dz_A_corr.expected == pytest.approx(0.5)
-        assert rep.half_sibs.measurements.traits[0].A_corr.expected == pytest.approx(0.25)
-
-    def test_bivariate_am_reports_but_does_not_assert(self):
-        """Under both-trait AM the single-trait formula does not apply, so FS/HS
-        carry no expectation; their observed values are still measured."""
-        p = _params(assort2=0.5)
-        df = run_simulation(**p).pedigree
-        rep = build_quality_report(df, sim_params(p))
-        fs = rep.heritability.measurements.traits[0].dz_A_corr
-        hs = rep.half_sibs.measurements.traits[0].A_corr
-        assert fs.expected is None
-        assert fs.mate_terms is None
-        assert math.isfinite(fs.observed)
-        assert hs.expected is None
-
     def test_matrix_only_assortment_is_checked_as_am(self):
         """A matrix with the scalars left at 0 mates exactly like matching scalars, so the report must agree (#93)."""
         matrix = [[0.5, 0.0], [0.0, 0.0]]

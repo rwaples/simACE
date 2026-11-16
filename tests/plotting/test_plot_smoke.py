@@ -680,7 +680,7 @@ class TestPlotCorrelationsExpanded:
 
         before = plt.get_fignums()
         out = tmp_path / "tet_sex.png"
-        plot_tetrachoric_by_sex(observed_binary_stats, out, scenario="test")
+        plot_tetrachoric_by_sex(observed_binary_stats, out, scenario="test", sim=sim_params({}))
         assert out.exists()
         assert out.stat().st_size > 0
         assert plt.get_fignums() == before
@@ -690,7 +690,7 @@ class TestPlotCorrelationsExpanded:
 
         before = plt.get_fignums()
         out = tmp_path / "tet_sex_empty.png"
-        plot_tetrachoric_by_sex([report_view()], out, scenario="test")
+        plot_tetrachoric_by_sex([report_view()], out, scenario="test", sim=sim_params({}))
         assert out.exists()
         assert plt.get_fignums() == before
 
@@ -699,7 +699,7 @@ class TestPlotCorrelationsExpanded:
 
         before = plt.get_fignums()
         out = tmp_path / "h2_sex_gen.png"
-        plot_heritability_by_sex_generation(observed_binary_stats, out, scenario="test")
+        plot_heritability_by_sex_generation(observed_binary_stats, out, scenario="test", sim=sim_params({}))
         assert out.exists()
         assert out.stat().st_size > 0
         assert plt.get_fignums() == before
@@ -709,7 +709,7 @@ class TestPlotCorrelationsExpanded:
 
         before = plt.get_fignums()
         out = tmp_path / "h2_sex_gen_empty.png"
-        plot_heritability_by_sex_generation([report_view()], out, scenario="test")
+        plot_heritability_by_sex_generation([report_view()], out, scenario="test", sim=sim_params({}))
         assert out.exists()
         assert plt.get_fignums() == before
 

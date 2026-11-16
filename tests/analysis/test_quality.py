@@ -455,179 +455,18 @@ class TestRecordedMatings:
         assert [m.cross_scored for m in recorded_matings(*mating_records(params))] == [False, True, True]
 
 
-def _assert_information(result: FamilyResult) -> None:
-    """Every mate correlation is a measurement: the family asserts no checks (ADR 0031)."""
-    assert result.checks == ()
-
-
-def _cells(result: FamilyResult) -> dict:
-    """The family's measured mate-correlation cells, by their report name."""
-    measured = result.measurements
-    cells = {f"mate_corr_liability{t}": cell for t, cell in enumerate(measured.liability, start=1) if cell is not None}
-    if measured.cross is not None:
-        cells |= {"mate_corr_cross_12": measured.cross[0], "mate_corr_cross_21": measured.cross[1]}
-    return cells
-
-
 class TestValidateAssortativeMating:
-    def test_zero_assort_reports_information_against_zero(self, val_params, val_mates):
+    def test_measures_the_liability_and_genetic_mate_correlations(self, val_params, val_mates):
         result = validate_assortative_mating(sim_params(val_params), val_mates)
-        _assert_information(result)
-        cells = _cells(result)
-        assert set(cells) == {"mate_corr_liability1", "mate_corr_liability2"}
-        assert result.measurements.n_pairs == val_mates.n_pairs
-        assert all(mu is not None for mu in result.measurements.genetic)
+        assert result.checks == ()
         for t in (1, 2):
-            entry = cells[f"mate_corr_liability{t}"]
-            assert entry.expected == 0
-            assert entry.observed == pytest.approx(val_mates.liability[t - 1, t - 1])
+            assert result.measurements.liability[t - 1] == pytest.approx(val_mates.liability[t - 1, t - 1])
+            assert result.measurements.genetic[t - 1] == pytest.approx(val_mates.genetic[t - 1])
 
-    def test_cross_trait_when_both_assort(self, val_mates, val_params):
-        params = {**val_params, "assort1": 0.2, "assort2": 0.3}
-        result = validate_assortative_mating(sim_params(params), val_mates)
-        cells = _cells(result)
-        _assert_information(result)
-        for key, cell in (("mate_corr_cross_12", (0, 1)), ("mate_corr_cross_21", (1, 0))):
-            assert cells[key].expected is not None
-            assert cells[key].observed == pytest.approx(val_mates.liability[cell])
-
-    def test_cross_trait_uses_assort_matrix_when_provided(self, val_mates, val_params):
-        params = {
-            **val_params,
-            "assort1": 0.2,
-            "assort2": 0.3,
-            "assort_matrix": [[0.2, 0.05], [0.05, 0.3]],
-        }
-        result = validate_assortative_mating(sim_params(params), val_mates)
-        cells = _cells(result)
-        assert cells["mate_corr_cross_12"].expected == pytest.approx(0.05)
-
-    def test_liability_target_reads_the_assort_matrix_diagonal(self, val_mates, val_params):
-        params = {**val_params, "assort_matrix": [[0.2, 0.05], [0.05, 0.3]]}
-        result = validate_assortative_mating(sim_params(params), val_mates)
-        cells = _cells(result)
-        assert cells["mate_corr_liability1"].expected == pytest.approx(0.2)
-        assert cells["mate_corr_liability2"].expected == pytest.approx(0.3)
-
-    def test_cross_trait_expected_includes_unique_environment(self, val_mates, val_params):
-        """rho_w carries rE * sqrt(E1 * E2), as the simulator's does (#61)."""
-        params = {**val_params, "assort1": 0.2, "assort2": 0.3, "rA": 0.0, "rC": 0.0, "rE": 0.8}
-        result = validate_assortative_mating(sim_params(params), val_mates)
-        cells = _cells(result)
-        rho_w = 0.8 * np.sqrt(params["E1"] * params["E2"])
-        for key in ("mate_corr_cross_12", "mate_corr_cross_21"):
-            assert cells[key].expected == pytest.approx(rho_w * np.sqrt(0.2 * 0.3))
-
-    @pytest.mark.parametrize(
-        "over",
-        [
-            pytest.param({"rE": 0.5, "E1": {0: 0.3, 1: 0.2}}, id="target-varies"),
-            pytest.param({"rE": 0.0, "E1": {0: 0.3, 1: 0.2}}, id="scales-change"),
-            pytest.param({"assort1": {0: 0.0, 2: 0.3}}, id="one-generation-random"),
-        ],
-    )
-    def test_cross_trait_has_no_pooled_target_across_generations(self, val_mates, val_params, over):
-        """A pooled cross-trait Pearson mixes targets or trait scales (#61, #64)."""
-        params = {**val_params, "assort1": 0.2, "assort2": 0.3, **over}
-        result = validate_assortative_mating(sim_params(params), val_mates)
-        cells = _cells(result)
-        _assert_information(result)
-        for key in ("mate_corr_cross_12", "mate_corr_cross_21"):
-            assert cells[key].expected is None
-            assert cells[key].observed is not None
-
-    @pytest.mark.parametrize(
-        "over",
-        [
-            # G_sim=3 records iterations 1 and 2, which mate parental C/E generations 0 and 1.
-            pytest.param({"rE": 0.5, "E1": {0: 0.3, 2: 0.2}}, id="unmated-generation"),
-            # G_sim=6, G_ped=3 records iterations 4 and 5 (generations 3, 4); the change at 2 is burn-in.
-            pytest.param({"rE": 0.5, "G_sim": 6, "E1": {0: 0.2, 2: 0.3}}, id="burn-in-only"),
-        ],
-    )
-    def test_cross_trait_pools_per_generation_params_that_leave_recorded_matings_constant(
-        self, val_mates, val_params, over
-    ):
-        params = {**val_params, "assort1": 0.2, "assort2": 0.3, **over}
-        result = validate_assortative_mating(sim_params(params), val_mates)
-        cells = _cells(result)
-        rho_w = (
-            params["rA"] * np.sqrt(params["A1"] * params["A2"])
-            + params["rC"] * np.sqrt(params["C1"] * params["C2"])
-            + params["rE"] * np.sqrt(0.3 * params["E2"])
-        )
-        for key in ("mate_corr_cross_12", "mate_corr_cross_21"):
-            assert cells[key].expected == pytest.approx(rho_w * np.sqrt(0.2 * 0.3))
-
-    def test_per_generation_assort1_drops_only_its_own_target(self, val_mates, val_params):
-        params = {**val_params, "rA": 0.0, "rC": 0.0, "assort1": {0: 0.1, 2: 0.3}, "assort2": 0.2}
-        result = validate_assortative_mating(sim_params(params), val_mates)
-        cells = _cells(result)
-        _assert_information(result)
-        assert cells["mate_corr_liability1"].expected is None
-        assert cells["mate_corr_liability1"].observed is not None
-        assert cells["mate_corr_liability2"].expected == pytest.approx(0.2)
-        assert cells["mate_corr_cross_12"].expected == pytest.approx(0.0)
-        assert result.measurements.genetic[0] is not None
-
-    def test_induced_cells_are_reported_without_a_target(self, val_mates, val_params):
-        """Assortment on trait 2 alone induces the other cells; their nominal target is biased (ADR 0031)."""
-        params = {**val_params, "rA": 1.0, "rC": 0.0, "A1": 0.5, "C1": 0.0, "E1": 0.5}
-        params |= {"A2": 0.5, "C2": 0.0, "E2": 0.5, "assort1": 0.0, "assort2": 0.8}
-        result = validate_assortative_mating(sim_params(params), val_mates)
-        cells = _cells(result)
-        _assert_information(result)
-        assert cells["mate_corr_liability2"].expected == pytest.approx(0.8)
-        for key in ("mate_corr_liability1", "mate_corr_cross_12", "mate_corr_cross_21"):
-            assert cells[key].expected is None
-            assert cells[key].observed is not None
-
-    def test_a_trait_random_in_one_generation_has_no_target(self, val_mates, val_params):
-        """Its random generation is induced by the other trait's assortment there."""
-        params = {**val_params, "rA": 0.0, "rC": 0.0, "assort1": {0: 0.0, 2: 0.3}, "assort2": 0.2}
-        result = validate_assortative_mating(sim_params(params), val_mates)
-        cells = _cells(result)
-        assert cells["mate_corr_liability1"].expected is None
-        assert cells["mate_corr_liability2"].expected == pytest.approx(0.2)
-
-    def test_cross_trait_assort_matrix_pools_under_per_generation_unique_environment(self, val_mates, val_params):
-        """The simulator mates every generation on assort_matrix, whatever E does after the recorded matings."""
-        params = {
-            **val_params,
-            "assort1": 0.2,
-            "assort2": 0.3,
-            "assort_matrix": [[0.2, 0.05], [0.05, 0.3]],
-            "E1": {0: 0.3, 2: 0.2},
-        }
-        result = validate_assortative_mating(sim_params(params), val_mates)
-        cells = _cells(result)
-        for key in ("mate_corr_cross_12", "mate_corr_cross_21"):
-            assert cells[key].expected == pytest.approx(0.05)
-
-    def test_a_simulation_with_correlated_unique_environment_lands_near_its_target(self):
-        """A correct simulation with rE != 0 and both traits assorting reports the rho_w target (#61)."""
-        params = {
-            **_DEFAULT_PARAMS,
-            "N": 5000,
-            "p_mztwin": 0.0,
-            "A1": 0.2,
-            "C1": 0.2,
-            "E1": 0.6,
-            "A2": 0.2,
-            "C2": 0.2,
-            "E2": 0.6,
-            "rA": 0.0,
-            "rC": 0.0,
-            "rE": 0.8,
-            "assort1": 0.8,
-            "assort2": 0.8,
-        }
-        result = build_quality_report(run_simulation(**params).pedigree, sim_params(params)).assortative_mating
-        cells = _cells(result)
-        _assert_information(result)
-        for key in ("mate_corr_cross_12", "mate_corr_cross_21"):
-            assert cells[key].expected == pytest.approx(0.8 * 0.6 * 0.8)
-            assert cells[key].observed == pytest.approx(cells[key].expected, abs=0.1)
+    def test_no_recorded_mating_measures_nothing(self, val_params, val_mates):
+        result = validate_assortative_mating(sim_params({**val_params, "G_sim": 1, "G_ped": 1}), val_mates)
+        assert result.measurements.liability == (None, None)
+        assert result.measurements.genetic == (None, None)
 
 
 # ---------------------------------------------------------------------------
@@ -741,7 +580,6 @@ class TestNothingToTestIsNotChecked:
         result = validate_am_equilibrium(val_pedigree, sim_params({**val_params, **assort}))
         for t in traits:
             assert result.find(f"am_equilibrium_A{t}") is None
-            assert result.measurements.final_var_A[t - 1] is None
 
     def test_rows_hold_only_checks_that_ran(self, founders_only_report):
         scored = {row["id"] for row in founders_only_report.rows()}
@@ -876,7 +714,6 @@ class TestValidateOnAscertainedPedigrees:
         both = (mother != -1) & (father != -1)
         n_pairs = len(set(zip(mother[both].tolist(), father[both].tolist(), strict=True)))
         params = {**val_params, "assort1": 0.3, "assort2": 0.0}
-        result = validate_assortative_mating(
-            sim_params(params), mate_correlations(severed_pedigree, mate_pedigree(severed_pedigree))
-        )
-        assert result.measurements.n_pairs == n_pairs
+        mates = mate_correlations(severed_pedigree, mate_pedigree(severed_pedigree))
+        assert mates.n_pairs == n_pairs
+        assert validate_assortative_mating(sim_params(params), mates).measurements.liability[0] is not None

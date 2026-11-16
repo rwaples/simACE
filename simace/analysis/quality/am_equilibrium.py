@@ -17,7 +17,6 @@ or not the run has converged).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -34,25 +33,7 @@ if TYPE_CHECKING:
     from simace.simulation.params import SimulationParams
 
 
-@dataclass(frozen=True)
-class AMEquilibriumMeasurements:
-    """What the AM-equilibrium family measures.
-
-    Attributes:
-        final_var_A: ``Var(A{t})`` in the last recorded generation, per trait,
-            where the univariate recursion applies to the trait's assortment
-            (single-trait, constant, scalar C and E); ``None`` otherwise.
-    """
-
-    final_var_A: tuple[float | None, float | None]
-
-
-_NOTHING_MEASURED = AMEquilibriumMeasurements(final_var_A=(None, None))
-
-
-def validate_am_equilibrium(
-    df: pd.DataFrame | pl.DataFrame, sim: SimulationParams
-) -> FamilyResult[AMEquilibriumMeasurements]:
+def validate_am_equilibrium(df: pd.DataFrame | pl.DataFrame, sim: SimulationParams) -> FamilyResult[None]:
     """Check that ``Var(A)`` reaches the AM-inflated equilibrium per trait.
 
     Checks nothing when the mating schedule has no assortment (Wright-Fisher,
@@ -64,8 +45,8 @@ def validate_am_equilibrium(
     Does not check a trait whose equilibrium is ill-defined or not modelled
     by the univariate recursion: AM that varies by generation, dict-valued
     C / E, both-trait assortment (cross-trait paths), or C transmission,
-    whose A-C covariance the recursion omits (ADR 0025). Under C
-    transmission the final ``Var(A)`` is still measured.
+    whose A-C covariance the recursion omits (ADR 0025). The family
+    measures nothing beyond its checks.
 
     Args:
         df: Pedigree DataFrame with ``id`` and ``A1``/``A2`` columns.
@@ -73,7 +54,7 @@ def validate_am_equilibrium(
     """
     assortment = sim.assortment
     if not assortment.any_active:
-        return FamilyResult(_NOTHING_MEASURED, ())  # random mating -> nothing to validate
+        return FamilyResult(None, ())  # random mating -> nothing to validate
 
     G_sim = sim.span.G_sim
     gen_labels = df["id"].to_numpy() // sim.N
@@ -81,7 +62,6 @@ def validate_am_equilibrium(
     n_last = int(last_mask.sum())
 
     checks = []
-    final_var_A: dict[int, float] = {}
     for t in (1, 2):
         if am_relatedness_mode(assortment, t) != "single":
             continue
@@ -96,10 +76,9 @@ def validate_am_equilibrium(
 
         V_pred = float(am_variance_trajectory(A_base, V_env, r_ho, int(G_sim))[-1])
         a2 = float(am_equilibrium_variance(A_base, V_env, r_ho))
-        obs = float(np.var(df[f"A{t}"].to_numpy()[last_mask]))
-        final_var_A[t] = obs
         if sim.c_transmission.coefficients(t) != (0.0, 0.0):
             continue
+        obs = float(np.var(df[f"A{t}"].to_numpy()[last_mask]))
 
         # SE of a sample variance for ~Gaussian A: V·sqrt(2/(n-1)). The 5x
         # multiplier (floored at 0.03) absorbs the slight non-normality of A
@@ -118,5 +97,4 @@ def validate_am_equilibrium(
             )
         )
 
-    measurements = AMEquilibriumMeasurements(final_var_A=(final_var_A.get(1), final_var_A.get(2)))
-    return FamilyResult(measurements, tuple(checks))
+    return FamilyResult(None, tuple(checks))

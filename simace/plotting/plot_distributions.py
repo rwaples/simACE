@@ -725,8 +725,8 @@ def plot_censoring_windows(
 
 def plot_family_structure(all_stats: list[ReportView], output_path: str | Path, scenario: str = "") -> None:
     """Plot offspring and mate count distributions, averaged across replicates."""
-    # Collect family_size dicts from each replicate ({} without children)
-    fs_list = [s.sample.family_size for s in all_stats]
+    # The replicates with a family_size table; it is {} without a child with both parents
+    fs_list = [s.sample.family_size for s in all_stats if s.sample.family_size]
     if not fs_list:
         save_placeholder_plot(output_path, "Family Structure\nNo family_size data")
         return

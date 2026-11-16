@@ -23,7 +23,6 @@ from .report_schema import (
 )
 
 if TYPE_CHECKING:
-    from .quality.assortative_mating import MateCorrelation
     from .quality.check import PairCorrelation
     from .quality.runner import QualityReport
     from .sample_stats import SampleStats
@@ -143,8 +142,8 @@ def extract_truth(
             "family_structure": family_structure,
             "cross_trait": {"rA": stat.rA, "rC": stat.rC, "rE": stat.rE},
             "assortative_mating": {
-                "mate_corr_liability1": _observed(am.liability[0]),
-                "mate_corr_liability2": _observed(am.liability[1]),
+                "mate_corr_liability1": am.liability[0],
+                "mate_corr_liability2": am.liability[1],
                 "mate_corr_A1": am.genetic[0],
                 "mate_corr_A2": am.genetic[1],
             },
@@ -152,7 +151,7 @@ def extract_truth(
     }
 
 
-def _observed(measured: PairCorrelation | MateCorrelation | None) -> float | None:
+def _observed(measured: PairCorrelation | None) -> float | None:
     return None if measured is None else measured.observed
 
 

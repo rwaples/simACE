@@ -206,16 +206,15 @@ def plot_heritability_by_generation(
                 if finite_mean.any():
                     ax.plot(x[finite_mean], mean_values[finite_mean], color=color, linewidth=1.4, label=f"Mean {label}")
 
-            if sim is not None:
-                ax.plot(
-                    x,
-                    _configured_share(sim, component, trait_num, generations),
-                    color=color,
-                    linestyle="--",
-                    linewidth=1.0,
-                    alpha=0.7,
-                    label=f"Configured {component}{trait_num} share",
-                )
+            ax.plot(
+                x,
+                _configured_share(sim, component, trait_num, generations),
+                color=color,
+                linestyle="--",
+                linewidth=1.0,
+                alpha=0.7,
+                label=f"Configured {component}{trait_num} share",
+            )
 
         ax.set_xlabel("Generation")
         ax.set_ylabel("Variance proportion / Var(L)")
@@ -334,7 +333,8 @@ def plot_heritability_by_sex_generation(
     all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
-    sim: SimulationParams | None = None,
+    *,
+    sim: SimulationParams,
 ) -> None:
     """Plot PO-regression heritability by offspring sex and generation.
 
@@ -393,42 +393,41 @@ def plot_heritability_by_sex_generation(
 
         # Expected slope: A / V_P without C transmission, else analytic where exact or
         # the rep-mean recorded-pedigree truth for each generation (ADR 0025).
-        if sim is not None:
-            expected = {
-                gen: reference_midparent_slope(
-                    sim.assortment,
-                    sim.c_transmission,
-                    sim.vc,
-                    trait_num,
-                    truth_mean(
-                        [truth_entry(s.truth_midparent_slope.get(f"trait{trait_num}"), gen) for s in all_stats],
-                        "slope",
-                    ),
-                )
-                for gen in generations
-            }
-            known = {gen: v for gen, v in expected.items() if v is not None}
-            if len(set(known.values())) == 1:
-                exp = next(iter(known.values()))
-                ax.axhline(
-                    y=exp,
-                    color=COLOR_UNAFFECTED,
-                    linestyle="--",
-                    linewidth=1.0,
-                    alpha=0.7,
-                    label=f"Expected slope = {exp:.3g}",
-                )
-            elif known:
-                ax.plot(
-                    list(known),
-                    list(known.values()),
-                    color=COLOR_UNAFFECTED,
-                    linestyle="--",
-                    marker="_",
-                    linewidth=1.0,
-                    alpha=0.7,
-                    label="Expected slope",
-                )
+        expected = {
+            gen: reference_midparent_slope(
+                sim.assortment,
+                sim.c_transmission,
+                sim.vc,
+                trait_num,
+                truth_mean(
+                    [truth_entry(s.truth_midparent_slope.get(f"trait{trait_num}"), gen) for s in all_stats],
+                    "slope",
+                ),
+            )
+            for gen in generations
+        }
+        known = {gen: v for gen, v in expected.items() if v is not None}
+        if len(set(known.values())) == 1:
+            exp = next(iter(known.values()))
+            ax.axhline(
+                y=exp,
+                color=COLOR_UNAFFECTED,
+                linestyle="--",
+                linewidth=1.0,
+                alpha=0.7,
+                label=f"Expected slope = {exp:.3g}",
+            )
+        elif known:
+            ax.plot(
+                list(known),
+                list(known.values()),
+                color=COLOR_UNAFFECTED,
+                linestyle="--",
+                marker="_",
+                linewidth=1.0,
+                alpha=0.7,
+                label="Expected slope",
+            )
 
         ax.set_xlabel("Generation")
         ax.set_ylabel("h² (PO regression slope)")
@@ -460,7 +459,8 @@ def plot_observed_heritability(
     all_stats: list[ReportView],
     output_path: str | Path,
     scenario: str = "",
-    sim: SimulationParams | None = None,
+    *,
+    sim: SimulationParams,
 ) -> None:
     """Observed-scale h² and its Dempster-Lerner liability-scale back-transform.
 
@@ -555,7 +555,7 @@ def plot_observed_heritability(
             )
 
         # Observed-column reference: A * mean dl_inv
-        if sim is not None and K_vals:
+        if K_vals:
             K_bar = float(np.mean(K_vals))
             dl_bar = dempster_lerner_factor(K_bar)
             if np.isfinite(dl_bar):

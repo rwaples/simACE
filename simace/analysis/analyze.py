@@ -28,9 +28,8 @@ __all__ = ["cli", "run_analysis"]
 import argparse
 import gc
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-import numpy as np
 from pedigree_graph import PedigreeGraph
 
 from simace.core.cohort import read_c_transmission_clips, read_cohort, read_pedigree, selected_views
@@ -42,6 +41,7 @@ from simace.simulation.params import SimulationParams
 
 from .quality import build_quality_report
 from .report import assemble_report
+from .sample_stats import ScopeSize
 from .stats.runner import (
     LIABILITY_COMPONENT_COLUMNS,
     PEDIGREE_REPORT_COLUMNS,
@@ -50,15 +50,7 @@ from .stats.runner import (
 )
 from .truth import recorded_pedigree_truth
 
-if TYPE_CHECKING:
-    import pandas as pd
-    import polars as pl
-
 logger = logging.getLogger(__name__)
-
-
-def _n_generations(df: pd.DataFrame | pl.DataFrame) -> int:
-    return len(np.unique(df["generation"].to_numpy())) if "generation" in df.columns else 1
 
 
 def run_analysis(
@@ -119,10 +111,11 @@ def run_analysis(
         df_full, sim, max_degree, clips=read_c_transmission_clips(pedigree_path), graph=graph
     )
     del graph
+    recorded = ScopeSize.of(df_full)
     scope_counts["recorded_pedigree"] = {
         "source": "pedigree.parquet",
-        "n_individuals": len(df_full),
-        "n_generations": _n_generations(df_full),
+        "n_individuals": recorded.n_individuals,
+        "n_generations": recorded.n_generations,
     }
     del df_full
     gc.collect()

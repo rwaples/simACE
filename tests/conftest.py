@@ -125,6 +125,21 @@ def sim_params(params: Mapping[str, Any] | None = None, /, **overrides: Any) -> 
     return SimulationParams.from_mapping({**SIM_DEFAULTS, **(params or {}), **overrides})
 
 
+def stats_tables(cls: type, tables: Mapping[str, Any]) -> Any:
+    """A ``cls`` (a SampleStats scope record) from the tables a test sets.
+
+    A table left out is ``{}``, a censoring table ``None``; a name that is not
+    one of ``cls``'s tables raises, so a typo cannot silently drop a table.
+    """
+    from dataclasses import fields
+
+    names = {f.name for f in fields(cls)}
+    unknown = set(tables) - names
+    if unknown:
+        raise TypeError(f"{cls.__name__} has no tables {sorted(unknown)}")
+    return cls(**{name: tables.get(name, None if name.startswith("censoring_") else {}) for name in names})
+
+
 def report_view(
     *,
     pedigree: Mapping[str, Any] | None = None,
@@ -141,8 +156,7 @@ def report_view(
 
     The keyword tables are ``observed.analysis_sample``'s, by field name
     (dense arrays included); ``pedigree`` is ``observed.analysis_pedigree``.
-    Both read as a report's: a table left out is ``{}``, a censoring table
-    ``None``. The sizes are ``(n_individuals, n_generations)``; ``sim``
+    A table left out is ``{}``, a censoring table ``None`` (:func:`stats_tables`). The sizes are ``(n_individuals, n_generations)``; ``sim``
     parses ``parameters`` over :data:`SIM_DEFAULTS`.
     """
     from simace.analysis.sample_stats import AnalysisPedigreeStats, AnalysisSampleStats, ScopeSize
@@ -152,8 +166,8 @@ def report_view(
     return ReportView(
         sample_size=ScopeSize(*sample_size),
         pedigree_size=ScopeSize(*pedigree_size),
-        sample=AnalysisSampleStats.from_report(sample),
-        pedigree=AnalysisPedigreeStats.from_report(dict(pedigree or {})),
+        sample=stats_tables(AnalysisSampleStats, sample),
+        pedigree=stats_tables(AnalysisPedigreeStats, pedigree or {}),
         observed_h2_estimators=observed_h2_estimators or {},
         per_generation=per_generation or {},
         parameters=parameters,

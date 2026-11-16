@@ -241,7 +241,7 @@ class TestPlaceholderPaths:
         from simace.plotting.plot_correlations import plot_tetrachoric_by_generation
 
         out = tmp_path / "tet_gen.png"
-        plot_tetrachoric_by_generation([report_view()], out, scenario="test")
+        plot_tetrachoric_by_generation([report_view()], out, scenario="test", sim=sim_params({}))
         assert out.exists()
 
     def test_heritability_no_data(self, tmp_path):
@@ -256,7 +256,7 @@ class TestPlaceholderPaths:
 
         df = sample_df.drop("generation")
         out = tmp_path / "po.png"
-        plot_parent_offspring_liability(df, [report_view()], out, scenario="test")
+        plot_parent_offspring_liability(df, [report_view()], out, scenario="test", sim=sim_params({}))
         assert out.exists()
 
     def test_parent_offspring_with_params(self, tmp_path, sample_df):
@@ -375,7 +375,7 @@ class TestFinalizePaths:
         stats = [report_view(pedigree={"mate_correlation": {"matrix": [[0.1, 0.2], [0.3, 0.4]]}})]
         out = tmp_path / "mate_correlation.png"
 
-        plot_liability.plot_mate_correlation(stats, out, scenario="test")
+        plot_liability.plot_mate_correlation(stats, out, scenario="test", sim=sim_params({}))
 
         assert out.exists()
         assert len(heatmap_kwargs) == 2

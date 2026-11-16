@@ -215,7 +215,7 @@ class TestPlotMateCorrelation:
         from simace.plotting.plot_liability import plot_mate_correlation
 
         out = tmp_path / "mate_correlation.png"
-        plot_mate_correlation([report_view()], str(out), scenario="test")
+        plot_mate_correlation([report_view()], str(out), scenario="test", sim=sim_params({}))
         assert out.exists()
 
 

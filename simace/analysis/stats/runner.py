@@ -108,11 +108,6 @@ def _same_ordered_ids(left: _Frame, right: _Frame) -> bool:
     return bool(np.array_equal(left["id"].to_numpy(), right["id"].to_numpy()))
 
 
-def _scope_size(df: _Frame) -> ScopeSize:
-    n_generations = len(np.unique(df["generation"].to_numpy())) if "generation" in df.columns else 1
-    return ScopeSize(n_individuals=len(df), n_generations=n_generations)
-
-
 def _build_relationship_context(df: _Frame, df_ped: _Frame, max_degree: int) -> RelationshipContext:
     if isinstance(max_degree, bool):
         raise TypeError("max_degree must be an integer, not bool")
@@ -199,7 +194,7 @@ def build_stats_report(
     _log_elapsed("Relationship context", t0)
     moments = relationships.moments
     logger.info(
-        "Pedigree pair counts (from same graph): %s",
+        "Analysis pedigree pair counts: %s",
         ", ".join(f"{k}: {v}" for k, v in relationships.full_counts.items() if v is not None),
     )
 
@@ -227,8 +222,8 @@ def build_stats_report(
     _log_elapsed("Tetrachoric correlation stats", t_mle)
 
     return SampleStats(
-        sample_size=_scope_size(df),
-        pedigree_size=_scope_size(df_ped),
+        sample_size=ScopeSize.of(df),
+        pedigree_size=ScopeSize.of(df_ped),
         analysis_sample=AnalysisSampleStats(
             **incidence,
             person_years=person_years,

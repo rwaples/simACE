@@ -12,8 +12,6 @@ from simace.simulation.mate_correlation import expected_mate_corr_matrix
 from .check import FamilyResult
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-
     import numpy as np
 
     from simace.simulation.params import Assortment, SimulationParams, Span, VarianceComponents
@@ -22,14 +20,10 @@ if TYPE_CHECKING:
 
 __all__ = [
     "AssortativeMatingMeasurements",
-    "MateCorrelation",
     "RecordedMating",
     "recorded_matings",
     "validate_assortative_mating",
 ]
-
-#: The cross-trait cells (mothers' trait 1 with fathers' trait 2, and the reverse).
-_CROSS_CELLS = ((0, 1), (1, 0))
 
 
 @dataclass(frozen=True)
@@ -93,34 +87,20 @@ def recorded_matings(span: Span, vc: VarianceComponents, assortment: Assortment)
 
 
 @dataclass(frozen=True)
-class MateCorrelation:
-    """One cell of the mate correlation matrix, pooled over every Mating Pair.
-
-    Attributes:
-        observed: The Pearson correlation; ``None`` where it is not computable.
-        expected: The target, when one applies to every Mating Pair.
-    """
-
-    observed: float | None
-    expected: float | None
-
-
-@dataclass(frozen=True)
 class AssortativeMatingMeasurements:
-    """What the assortative-mating family measures; the correlations are ``None`` with no recorded mating pairs.
+    """What the assortative-mating family measures; each correlation is ``None`` where it is not computable.
 
     Attributes:
-        n_pairs: The Mating Pairs.
-        liability: ``mate_corr_liability{t}``, ``liability[t - 1]``.
-        cross: The cross-trait cells ``(cross_12, cross_21)``, only when some
-            trait assorts in a recorded mating.
+        liability: The mates' liability correlation per trait, ``liability[t - 1]``,
+            pooled over every Mating Pair.
         genetic: The genetic mate correlation ``mu_A`` per trait.
     """
 
-    n_pairs: int
-    liability: tuple[MateCorrelation | None, MateCorrelation | None]
-    cross: tuple[MateCorrelation, MateCorrelation] | None
+    liability: tuple[float | None, float | None]
     genetic: tuple[float | None, float | None]
+
+
+_NO_MATINGS = AssortativeMatingMeasurements(liability=(None, None), genetic=(None, None))
 
 
 def validate_assortative_mating(
@@ -129,62 +109,20 @@ def validate_assortative_mating(
     """Measure the pedigree's mate correlations; the family asserts no checks.
 
     Each is the Pearson correlation of mother and father values over every
-    Mating Pair: the liability correlation per trait, the cross-trait cells
-    when either trait assorts in some recorded mating, and the genetic
-    ``mu_A``. A liability cell carries ``expected`` when its trait assorts
-    in every recorded mating with the same target, or when no trait assorts
-    anywhere (target 0); a cross cell when both traits assort in every
-    recorded mating with the same target and the same C/E, since a pooled
-    cross-trait Pearson mixes the generations' trait scales (ADR 0026).
-    ``simace validate``'s ``mate_correlation`` test scores each parents'
-    generation against its target (ADR 0031).
+    Mating Pair: the liability correlation and the genetic ``mu_A`` per
+    trait. Both are ``None`` when the pedigree records no mating with both
+    parents present. ``simace validate``'s ``mate_correlation`` test scores
+    each parents' generation against its target (ADR 0031).
 
     Args:
         sim: The rep's parameters (``params.yaml``).
         mates: The pedigree's mate correlations
             (:func:`~simace.analysis.quality._common.mate_correlations`).
     """
-    matings = recorded_matings(sim.span, sim.vc, sim.assortment)
-    n_pairs = mates.n_pairs
-    if n_pairs == 0 or not matings:
-        return FamilyResult(AssortativeMatingMeasurements(n_pairs, (None, None), None, (None, None)), ())
-
-    def cell(index: tuple[int, int], expected: float | None) -> MateCorrelation:
-        return MateCorrelation(observed=finite_or_none(mates.liability[index]), expected=expected)
-
-    # A cell the simulator does not mate on is induced, and its nominal
-    # target is biased (ADR 0031), so it has none.
-    assorts = any(m.assort != (0, 0) for m in matings)
-    liability = tuple(
-        cell(
-            (t - 1, t - 1),
-            _pooled_target(
-                [m if m.assort[t - 1] != 0 or not assorts else None for m in matings], (t - 1, t - 1), same_ce=False
-            ),
-        )
-        for t in (1, 2)
+    if mates.n_pairs == 0 or not recorded_matings(sim.span, sim.vc, sim.assortment):
+        return FamilyResult(_NO_MATINGS, ())
+    measurements = AssortativeMatingMeasurements(
+        liability=(finite_or_none(mates.liability[0, 0]), finite_or_none(mates.liability[1, 1])),
+        genetic=(finite_or_none(mates.genetic[0]), finite_or_none(mates.genetic[1])),
     )
-    cross = None
-    if assorts:
-        scored = [m if m.cross_scored else None for m in matings]
-        cross_12, cross_21 = (cell(index, _pooled_target(scored, index, same_ce=True)) for index in _CROSS_CELLS)
-        cross = (cross_12, cross_21)
-
-    # Genetic (A-component) mate correlation mu_A; consumed by the
-    # AM-corrected relative-correlation reference lines (see am_relatedness
-    # and plot_A_correlations). Reduces to ~0 with no assortment.
-    genetic = (finite_or_none(mates.genetic[0]), finite_or_none(mates.genetic[1]))
-    measurements = AssortativeMatingMeasurements(n_pairs, (liability[0], liability[1]), cross, genetic)
     return FamilyResult(measurements, ())
-
-
-def _pooled_target(matings: Sequence[RecordedMating | None], cell: tuple[int, int], *, same_ce: bool) -> float | None:
-    """The one target of ``cell`` across *matings*, or None when one is missing (None) or they differ."""
-    if any(m is None for m in matings):
-        return None
-    values = [float(m.expected[cell]) for m in matings if m is not None]
-    if max(values) - min(values) > 1e-12:
-        return None
-    if same_ce and len({m.ce for m in matings if m is not None}) > 1:
-        return None
-    return values[0]

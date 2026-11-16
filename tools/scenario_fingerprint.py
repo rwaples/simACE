@@ -287,6 +287,7 @@ def bytes_mode(scratch: Path, out: Path, jobs: int) -> None:
 
     Compare two runs with ``diff -r before/ after/``; ``out/SHA256SUMS`` lists every file.
     """
+    out.mkdir(parents=True, exist_ok=True)
     _bytes_config(scratch)
     roots = ["--config-dir", str(scratch / "config"), "--results", str(scratch / "results")]
     roots += ["--logs", str(scratch / "logs")]

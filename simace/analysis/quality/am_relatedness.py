@@ -36,7 +36,6 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from ._common import _MIN_PAIRS_FOR_CORR
-from .check import MateTerms
 
 if TYPE_CHECKING:
     from simace.simulation.params import Assortment
@@ -47,7 +46,6 @@ __all__ = [
     "am_expected_a_correlation",
     "am_relatedness_mode",
     "observed_mate_correlations",
-    "resolve_expected_a_corr",
 ]
 
 
@@ -99,28 +97,3 @@ def am_expected_a_correlation(kind: str, mu_a: float, r_ho: float) -> float:
     if kind == "MZ":
         return 1.0
     raise ValueError(f"unknown relationship kind: {kind!r}")
-
-
-def resolve_expected_a_corr(
-    mates: MateCorrelations,
-    assortment: Assortment,
-    t: int,
-    kind: str,
-    default: float,
-) -> tuple[float | None, MateTerms | None]:
-    """Resolve the expected A-correlation for trait ``t``, AM-aware.
-
-    Returns ``(expected, mate_terms)``:
-
-    * no AM → ``(default, None)`` (random-mating ``2·kinship`` unchanged);
-    * single-trait AM → ``(am_expected, MateTerms(mu_A, r_ho, mate_pairs))``;
-    * bivariate AM → ``(None, None)``: cross-trait paths are not modelled by
-      the single-trait formula, so there is no expectation.
-    """
-    mode = am_relatedness_mode(assortment, t)
-    if mode == "none":
-        return default, None
-    if mode == "bivariate":
-        return None, None
-    mu_a, r_ho, n = observed_mate_correlations(mates, t)
-    return am_expected_a_correlation(kind, mu_a, r_ho), MateTerms(mu_A=mu_a, r_ho=r_ho, mate_pairs=n)

@@ -93,7 +93,6 @@ class TestValidation:
         assert check.passed, check.message
         # Observed final-gen Var(A1) is inflated above the base A1=0.6.
         assert check.observed > 0.6
-        assert res.measurements.final_var_A == (check.observed, None)
         assert float(re.search(r"equilibrium a²=([0-9.]+)", check.message).group(1)) > 0.6
 
     def test_no_am_emits_no_checks(self):
@@ -111,4 +110,3 @@ class TestValidation:
         df = run_simulation(**p).pedigree
         res = validate_am_equilibrium(df, sim_params(p))
         assert res.checks == ()
-        assert res.measurements.final_var_A == (None, None)

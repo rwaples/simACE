@@ -9,11 +9,13 @@ exist on one side only (ADR 0008).
 Field order is the report's key order. Each table is the dict its
 ``compute_*`` function returns.
 
-``partition_dense`` drops empty tables from ``report.yaml``. An always-computed
-table that is absent therefore reads back as ``{}``. The censoring tables are
-computed only under per-generation censoring windows, so absent reads back as
-``None``. The round trip holds on the serialized form, which cannot tell an
-empty table from an absent one.
+``partition_dense`` drops empty tables from ``report.yaml``. The four
+always-computed tables that a correct rep can leave empty (``_PRUNABLE``)
+therefore read back as ``{}`` when absent. The censoring tables are computed
+only under per-generation censoring windows, so absent reads back as ``None``.
+Any other absent table raises: it is a renamed or dropped stat, not data. The
+round trip holds on the serialized form, which cannot tell an empty table from
+an absent one.
 """
 
 from __future__ import annotations
@@ -21,10 +23,22 @@ from __future__ import annotations
 __all__ = ["AnalysisPedigreeStats", "AnalysisSampleStats", "SampleStats", "ScopeSize"]
 
 from dataclasses import dataclass, fields
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+import numpy as np
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
 
 #: Tables computed only when the rep has per-generation censoring windows.
 _CENSORING_FIELDS = frozenset({"censoring_windows", "censoring_confusion", "censoring_cascade"})
+
+#: Always-computed tables a correct rep can leave empty, so report.yaml omits them:
+#: no child with both parents (family_size), or one generation only (the others).
+_PRUNABLE = frozenset(
+    {"family_size", "parent_offspring_corr", "parent_offspring_corr_by_sex", "tetrachoric_by_generation"}
+)
 
 type Table = dict[str, Any]
 
@@ -44,6 +58,12 @@ class ScopeSize:
 
     n_individuals: int
     n_generations: int
+
+    @classmethod
+    def of(cls, frame: pd.DataFrame | pl.DataFrame) -> ScopeSize:
+        """The rows of ``frame`` and its distinct ``generation`` labels (1 without the column)."""
+        n_generations = len(np.unique(frame["generation"].to_numpy())) if "generation" in frame.columns else 1
+        return cls(n_individuals=len(frame), n_generations=n_generations)
 
 
 @dataclass(frozen=True)
@@ -88,8 +108,8 @@ class AnalysisSampleStats:
 
     @classmethod
     def from_report(cls, block: Table) -> AnalysisSampleStats:
-        """Read a report block (dense arrays already merged back in)."""
-        return cls(**{f.name: block.get(f.name, None if f.name in _CENSORING_FIELDS else {}) for f in fields(cls)})
+        """Read a report block (dense arrays already merged back in); raises ``KeyError`` on a missing stat."""
+        return cls(**{f.name: _read(block, f.name) for f in fields(cls)})
 
 
 @dataclass(frozen=True)
@@ -106,8 +126,8 @@ class AnalysisPedigreeStats:
 
     @classmethod
     def from_report(cls, block: Table) -> AnalysisPedigreeStats:
-        """Read a report block."""
-        return cls(**{f.name: block.get(f.name, {}) for f in fields(cls)})
+        """Read a report block; raises ``KeyError`` on a missing stat."""
+        return cls(**{f.name: _read(block, f.name) for f in fields(cls)})
 
 
 @dataclass(frozen=True)
@@ -147,6 +167,17 @@ class SampleStats:
             analysis_pedigree=AnalysisPedigreeStats.from_report(observed.get("analysis_pedigree", {})),
             observed_h2_estimators=report["estimators"]["heritability"].get("observed_scale", {}),
         )
+
+
+def _read(block: Table, name: str) -> Any:
+    """``block[name]``, or what an absent table means: ``None`` for a censoring table, ``{}`` for a pruned one."""
+    if name in block:
+        return block[name]
+    if name in _CENSORING_FIELDS:
+        return None
+    if name in _PRUNABLE:
+        return {}
+    raise KeyError(f"report has no {name!r} stat")
 
 
 def _size(scope: Table) -> dict[str, int]:

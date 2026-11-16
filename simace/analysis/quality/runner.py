@@ -31,7 +31,6 @@ if TYPE_CHECKING:
 
     from simace.simulation.params import SimulationParams
 
-    from .am_equilibrium import AMEquilibriumMeasurements
     from .assortative_mating import AssortativeMatingMeasurements
     from .check import FamilyResult
     from .consanguinity import ConsanguinityMeasurements
@@ -86,7 +85,7 @@ class QualityReport:
     heritability: FamilyResult[HeritabilityMeasurements]
     population: FamilyResult[PopulationMeasurements]
     assortative_mating: FamilyResult[AssortativeMatingMeasurements]
-    am_equilibrium: FamilyResult[AMEquilibriumMeasurements]
+    am_equilibrium: FamilyResult[None]
     consanguineous_matings: FamilyResult[ConsanguinityMeasurements]
     per_generation: dict[str, dict[str, Any]]
     family_size_distribution: dict[str, Any]

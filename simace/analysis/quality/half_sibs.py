@@ -6,13 +6,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
-from pedigree_graph import RELATIONSHIPS
 
 from simace.core.numerics import unique_sorted
-from simace.core.relationships import analytic_applies, shared_environment_coefficient
 
 from ._common import _MIN_PAIRS_FOR_CORR, SIBLING_CATEGORIES, category_cell, pair_correlation
-from .am_relatedness import resolve_expected_a_corr
 from .check import FamilyResult, PairCorrelation
 
 if TYPE_CHECKING:
@@ -131,29 +128,14 @@ def _half_sib_trait(
 
     a_corr = None
     if n_pooled >= _MIN_PAIRS_FOR_CORR:
-        expected_a, mate_terms = resolve_expected_a_corr(
-            mates, sim.assortment, t, "HS", 2.0 * RELATIONSHIPS["MHS"].nominal_kinship
-        )
-        a_corr = PairCorrelation(
-            observed=float(pair_correlation(pooled, f"A{t}")),
-            n_pairs=n_pooled,
-            expected=None if expected_a is None else float(expected_a),
-            mate_terms=mate_terms,
-        )
-
+        a_corr = PairCorrelation(observed=float(pair_correlation(pooled, f"A{t}")), n_pairs=n_pooled)
     if n_phs < _MIN_PAIRS_FOR_CORR:
         return HalfSibTrait(A_corr=a_corr, liability_corr=None, shared_C=None)
-    liability = PairCorrelation(observed=float(pair_correlation(phs, f"P{t}")), n_pairs=n_phs)
-    # Without C transmission paternal half-sibs share no C. With it they
-    # share b_f**2 under the analytic gate; otherwise there is no formula.
-    phs_analytic = analytic_applies("PHS", sim.assortment, sim.c_transmission, sim.vc, t)
-    expected_c = shared_environment_coefficient("PHS", *sim.c_transmission.coefficients(t)) if phs_analytic else None
-    shared_c = PairCorrelation(
-        observed=float(pair_correlation(phs, f"C{t}")),
-        n_pairs=n_phs,
-        expected=None if expected_c is None else float(expected_c),
+    return HalfSibTrait(
+        A_corr=a_corr,
+        liability_corr=PairCorrelation(observed=float(pair_correlation(phs, f"P{t}")), n_pairs=n_phs),
+        shared_C=PairCorrelation(observed=float(pair_correlation(phs, f"C{t}")), n_pairs=n_phs),
     )
-    return HalfSibTrait(A_corr=a_corr, liability_corr=liability, shared_C=shared_c)
 
 
 def validate_half_sibs(

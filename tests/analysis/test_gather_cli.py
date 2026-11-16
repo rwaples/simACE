@@ -7,8 +7,7 @@ import pytest
 import yaml
 
 from simace.analysis.quality import FamilyResult, PairCorrelation, QualityCheck, QualityReport
-from simace.analysis.quality.am_equilibrium import AMEquilibriumMeasurements
-from simace.analysis.quality.assortative_mating import AssortativeMatingMeasurements, MateCorrelation
+from simace.analysis.quality.assortative_mating import AssortativeMatingMeasurements
 from simace.analysis.quality.consanguinity import ConsanguinityMeasurements
 from simace.analysis.quality.half_sibs import HalfSibMeasurements, HalfSibTrait
 from simace.analysis.quality.heritability import HeritabilityMeasurements, HeritabilityTrait, MidparentRegression
@@ -18,6 +17,7 @@ from simace.analysis.quality.structural import StructuralMeasurements
 from simace.analysis.quality.twins import TwinMeasurements
 from simace.analysis.report import assemble_report
 from simace.analysis.sample_stats import AnalysisPedigreeStats, AnalysisSampleStats, SampleStats, ScopeSize
+from tests.conftest import stats_tables
 
 # ---------------------------------------------------------------------------
 # cli_base
@@ -112,8 +112,8 @@ _HERITABILITY_TRAIT = HeritabilityTrait(
     dz_A_corr=PairCorrelation(0.49, 300),
     dz_liability_corr=PairCorrelation(0.50, 300),
     falconer=0.50,
-    po_A=MidparentRegression(slope=0.50, intercept=0.0, r_squared=0.50),
-    po_liability=MidparentRegression(slope=0.50, intercept=0.0, r_squared=0.50),
+    po_A=MidparentRegression(slope=0.50, r_squared=0.50),
+    po_liability=MidparentRegression(slope=0.50, r_squared=0.50),
 )
 
 # A quality report with every measurement extract_metrics reads.
@@ -145,15 +145,10 @@ _MINIMAL_QUALITY = QualityReport(
     c_transmission=FamilyResult(None, ()),
     heritability=FamilyResult(HeritabilityMeasurements(traits=(_HERITABILITY_TRAIT, _HERITABILITY_TRAIT)), ()),
     assortative_mating=FamilyResult(
-        AssortativeMatingMeasurements(
-            n_pairs=500,
-            liability=(MateCorrelation(0.01, None), MateCorrelation(-0.01, None)),
-            cross=None,
-            genetic=(0.0, 0.0),
-        ),
+        AssortativeMatingMeasurements(liability=(0.01, -0.01), genetic=(0.0, 0.0)),
         (),
     ),
-    am_equilibrium=FamilyResult(AMEquilibriumMeasurements(final_var_A=(None, None)), ()),
+    am_equilibrium=FamilyResult(None, ()),
     per_generation={},
     family_size_distribution={"mother": {"mean": 2.3}, "father": {"mean": 2.3}},
 )
@@ -168,8 +163,8 @@ _MINIMAL_REPORT, _ = assemble_report(
     stats=SampleStats(
         sample_size=ScopeSize(n_individuals=0, n_generations=0),
         pedigree_size=ScopeSize(n_individuals=0, n_generations=0),
-        analysis_sample=AnalysisSampleStats.from_report({}),
-        analysis_pedigree=AnalysisPedigreeStats.from_report({}),
+        analysis_sample=stats_tables(AnalysisSampleStats, {}),
+        analysis_pedigree=stats_tables(AnalysisPedigreeStats, {}),
         observed_h2_estimators={},
     ),
     prevalence_phenotyped={},

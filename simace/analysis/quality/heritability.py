@@ -13,7 +13,7 @@ from simace.analysis.midparent import midparent_offspring
 from simace.core.numerics import safe_corrcoef
 
 from ._common import _MIN_PAIRS_FOR_CORR, _corr_se, _extract_comp_vals, category_cell, pair_correlation
-from .am_relatedness import am_relatedness_mode, observed_mate_correlations, resolve_expected_a_corr
+from .am_relatedness import am_relatedness_mode, observed_mate_correlations
 from .check import FamilyResult, PairCorrelation, QualityCheck
 
 if TYPE_CHECKING:
@@ -36,7 +36,6 @@ class MidparentRegression:
     """The midparent-offspring regression of one value over the pedigree's offspring with both parents."""
 
     slope: float
-    intercept: float | None
     r_squared: float | None
 
 
@@ -47,7 +46,7 @@ class HeritabilityTrait:
     Attributes:
         mz_A_corr: The MZ twin A correlation.
         mz_liability_corr: The MZ twin liability correlation.
-        dz_A_corr: The full-sib A correlation, with its AM-aware expectation.
+        dz_A_corr: The full-sib A correlation.
         dz_liability_corr: The full-sib liability correlation.
         falconer: ``2(r_MZ - r_DZ)`` on liability; ``None`` without both correlations.
         po_A: The midparent-offspring regression of A; ``None`` with too few
@@ -78,30 +77,30 @@ def _midparent_regression(pedigree: Pedigree, vals: np.ndarray) -> MidparentRegr
     if fit.n <= _MIN_PO_OFFSPRING or fit.slope is None:
         return None
     # r2 is None, with the slope set, when every offspring value is equal.
-    return MidparentRegression(slope=fit.slope, intercept=fit.intercept, r_squared=fit.r2)
+    return MidparentRegression(slope=fit.slope, r_squared=fit.r2)
 
 
-def _mz_correlations(
-    df: pd.DataFrame | pl.DataFrame,
-    A_params: dict[int, float],
-    comp_vals: dict[str, np.ndarray],
-    ped: PedigreeArrays,
-    t: int,
-) -> tuple[PairCorrelation | None, PairCorrelation | None, QualityCheck | None]:
-    """Trait ``t``'s MZ twin A and liability correlations and the A check, or Nones with fewer than ten pairs."""
+def _mz_pair_positions(df: pd.DataFrame | pl.DataFrame, ped: PedigreeArrays) -> tuple[np.ndarray, np.ndarray]:
+    """The ``ped`` positions of each MZ pair's two members, one entry per pair."""
     twin_all = df["twin"].to_numpy()
     twin_mask = twin_all != -1
     twin_ids = df["id"].to_numpy()[twin_mask]
     twin_partners = twin_all[twin_mask]
     mask = twin_ids < twin_partners
-    t1_arr = twin_ids[mask]
-    t2_arr = twin_partners[mask]
-    n_pairs = len(t1_arr)
+    return ped.positions(twin_ids[mask]), ped.positions(twin_partners[mask])
+
+
+def _mz_correlations(
+    A_params: dict[int, float],
+    comp_vals: dict[str, np.ndarray],
+    pairs: tuple[np.ndarray, np.ndarray],
+    t: int,
+) -> tuple[PairCorrelation | None, PairCorrelation | None, QualityCheck | None]:
+    """Trait ``t``'s MZ twin A and liability correlations and the A check, or Nones with fewer than ten pairs."""
+    idx1, idx2 = pairs
+    n_pairs = len(idx1)
     if n_pairs < _MIN_PAIRS_FOR_CORR:
         return None, None, None
-
-    idx1 = ped.positions(t1_arr)
-    idx2 = ped.positions(t2_arr)
     col = f"A{t}"
     mz_v1, mz_v2 = comp_vals[col][idx1], comp_vals[col][idx2]
     mz_corr = safe_corrcoef(mz_v1, mz_v2)
@@ -118,36 +117,25 @@ def _mz_correlations(
     )
     P1 = mz_v1 + comp_vals[f"C{t}"][idx1] + comp_vals[f"E{t}"][idx1]
     P2 = mz_v2 + comp_vals[f"C{t}"][idx2] + comp_vals[f"E{t}"][idx2]
-    a_corr = PairCorrelation(observed=float(mz_corr), n_pairs=n_pairs, expected=expected_mz)
+    a_corr = PairCorrelation(observed=float(mz_corr), n_pairs=n_pairs)
     liability = PairCorrelation(observed=float(safe_corrcoef(P1, P2)), n_pairs=n_pairs)
     return a_corr, liability, check
 
 
 def _dz_correlations(
-    mates: MateCorrelations, assortment: Assortment, sibling_moments: RelationshipMoments, t: int
+    sibling_moments: RelationshipMoments, t: int
 ) -> tuple[PairCorrelation | None, PairCorrelation | None]:
     """Trait ``t``'s full-sib A and liability correlations, or Nones with fewer than ten pairs.
 
-    The full-sib A-component correlation carries its expectation,
-    ``2·kinship`` (0.5) under random mating and ``(1+mu_A)/2`` under
-    single-trait assortative mating (see :mod:`.am_relatedness`), none under
-    both-trait AM. It is not asserted: `simace validate`'s
-    ``mendelian_residual`` tests the inheritance (ADR 0029). The correlations
-    are exact over every full-sib pair (ADR 0022).
+    Not asserted: `simace validate`'s ``mendelian_residual`` tests the
+    inheritance (ADR 0029). The correlations are exact over every full-sib
+    pair (ADR 0022).
     """
     full_sibs = category_cell(sibling_moments, "FS")
     n_pairs = int(full_sibs.counts)
     if n_pairs < _MIN_PAIRS_FOR_CORR:
         return None, None
-    expected_dz, mate_terms = resolve_expected_a_corr(
-        mates, assortment, t, "FS", 2.0 * RELATIONSHIPS["FS"].nominal_kinship
-    )
-    a_corr = PairCorrelation(
-        observed=float(pair_correlation(full_sibs, f"A{t}")),
-        n_pairs=n_pairs,
-        expected=None if expected_dz is None else float(expected_dz),
-        mate_terms=mate_terms,
-    )
+    a_corr = PairCorrelation(observed=float(pair_correlation(full_sibs, f"A{t}")), n_pairs=n_pairs)
     return a_corr, PairCorrelation(observed=float(pair_correlation(full_sibs, f"P{t}")), n_pairs=n_pairs)
 
 
@@ -239,8 +227,9 @@ def validate_heritability(
     A_params = {1: sim.vc.A[0], 2: sim.vc.A[1]}
     comp_vals = _extract_comp_vals(ped)
 
-    mz = {t: _mz_correlations(df, A_params, comp_vals, ped, t) for t in (1, 2)}
-    dz = {t: _dz_correlations(mates, sim.assortment, sibling_moments, t) for t in (1, 2)}
+    mz_pairs = _mz_pair_positions(df, ped)
+    mz = {t: _mz_correlations(A_params, comp_vals, mz_pairs, t) for t in (1, 2)}
+    dz = {t: _dz_correlations(sibling_moments, t) for t in (1, 2)}
     falconer = {t: _falconer(mates, sim.assortment, comp_vals, A_params, mz[t][1], dz[t][1], t) for t in (1, 2)}
     traits = tuple(
         HeritabilityTrait(
