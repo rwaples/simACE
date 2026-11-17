@@ -28,6 +28,8 @@ __all__ = [
 ]
 
 import logging
+import math
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -58,6 +60,10 @@ from simace.plotting.stats_report import plotting_report_view, report_per_genera
 from simace.simulation.params import SimulationParams
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable, Sequence
+
+    from matplotlib.axes import Axes
+
     from simace.analysis.stats.pedigree_estimates import CohortEstimates
 
 logger = logging.getLogger(__name__)
@@ -112,14 +118,82 @@ def load_per_generation(
     return out
 
 
-def _mean_envelope(arr: np.ndarray, column: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Return (mean, low, high) across reps for one column of ``load_per_generation`` output.
+def scenario_color(index: int) -> str:
+    """The palette color of the *index*-th scenario, cycling past the palette's end."""
+    return SCENARIO_PALETTE[index % len(SCENARIO_PALETTE)]
+
+
+@dataclass(frozen=True)
+class Envelope:
+    """Mean and min/max across reps of one quantity; all NaN when no rep has a finite value.
 
     For a small number of reps (typical: 3) a parametric CI is less honest
-    than min/max across reps, so we use min/max as the envelope.
+    than min/max across reps, so min/max is the envelope.
     """
-    vals = arr[:, column]
-    return vals.mean(), vals.min(), vals.max()
+
+    mean: float
+    low: float
+    high: float
+
+
+def rep_envelope(values: Iterable[float] | np.ndarray) -> Envelope:
+    """The :class:`Envelope` of the finite *values* (one per rep)."""
+    arr = np.asarray(values if isinstance(values, np.ndarray) else list(values), dtype=float)
+    finite = arr[np.isfinite(arr)]
+    if finite.size == 0:
+        return Envelope(math.nan, math.nan, math.nan)
+    return Envelope(float(finite.mean()), float(finite.min()), float(finite.max()))
+
+
+def _envelope_arrays(envelopes: Sequence[Envelope]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """``(means, lows, highs)`` arrays of *envelopes*."""
+    return (
+        np.array([e.mean for e in envelopes], dtype=float),
+        np.array([e.low for e in envelopes], dtype=float),
+        np.array([e.high for e in envelopes], dtype=float),
+    )
+
+
+def draw_envelope_line(
+    ax: Axes, x: Sequence[float], envelopes: Sequence[Envelope], color: str, label: str, marker: str = "o"
+) -> None:
+    """Plot the envelope means as a marked line over a translucent min/max band."""
+    ax.plot(x, [e.mean for e in envelopes], color=color, marker=marker, label=label)
+    ax.fill_between(x, [e.low for e in envelopes], [e.high for e in envelopes], color=color, alpha=0.15, linewidth=0)
+
+
+def bar_offsets(x: np.ndarray, group_width: float, n_bars: int, index: int) -> np.ndarray:
+    """Centers of the *index*-th of *n_bars* bars side by side in each group of width *group_width* around *x*."""
+    bar_width = group_width / n_bars
+    return x - group_width / 2 + bar_width / 2 + index * bar_width
+
+
+def draw_grouped_bars(
+    ax: Axes, offsets: np.ndarray, envelopes: Sequence[Envelope], bar_width: float, color: str, label: str | None
+) -> None:
+    """Bars at the envelope means with min/max error bars; groups with no finite mean are left empty."""
+    means, lows, highs = _envelope_arrays(envelopes)
+    mask = np.isfinite(means)
+    err_low = np.where(mask, means - lows, 0.0)
+    err_high = np.where(mask, highs - means, 0.0)
+    ax.bar(
+        offsets[mask],
+        means[mask],
+        width=bar_width * 0.95,
+        color=color,
+        label=label,
+        yerr=[err_low[mask], err_high[mask]],
+        capsize=3,
+        linewidth=0,
+    )
+
+
+def padded_range(values: np.ndarray) -> tuple[float, float]:
+    """The 0.1%-99.9% quantile range of *values*, widened by 5% on each side: a shared axis that ignores outliers."""
+    lo = float(np.quantile(values, 0.001))
+    hi = float(np.quantile(values, 0.999))
+    pad = 0.05 * (hi - lo)
+    return lo - pad, hi + pad
 
 
 def _save(fig: plt.Figure, output_path: Path | str, rect: tuple[float, float, float, float] | None = None) -> None:
@@ -186,16 +260,9 @@ def compare_realized_variance_trajectory(
         reps = [Path(p) for p in rep_paths]
         per_gen = load_per_generation(reps, trait=trait)
         gens = sorted(per_gen.keys())
-        color = SCENARIO_PALETTE[scen_idx % len(SCENARIO_PALETTE)]
+        color = scenario_color(scen_idx)
         for ax, col, _title, _expected in panel_defs:
-            means, lows, highs = [], [], []
-            for gen in gens:
-                mean, lo, hi = _mean_envelope(per_gen[gen], col)
-                means.append(mean)
-                lows.append(lo)
-                highs.append(hi)
-            ax.plot(gens, means, color=color, marker="o", label=label)
-            ax.fill_between(gens, lows, highs, color=color, alpha=0.15, linewidth=0)
+            draw_envelope_line(ax, gens, [rep_envelope(per_gen[gen][:, col]) for gen in gens], color, label)
 
     for ax, _col, title, expected in panel_defs:
         ax.set_title(title)
@@ -285,18 +352,13 @@ def compare_component_distributions(
 
     # Shared x-axis across both panels makes the relative widths (A is
     # tighter than liability, because liability = A + E) directly legible.
-    combined = np.concatenate([np.concatenate(per_scen_a), np.concatenate(per_scen_l)])
-    lo = float(np.quantile(combined, 0.001))
-    hi = float(np.quantile(combined, 0.999))
-    pad = 0.05 * (hi - lo)
-    lo -= pad
-    hi += pad
+    lo, hi = padded_range(np.concatenate([np.concatenate(per_scen_a), np.concatenate(per_scen_l)]))
     bins = np.linspace(lo, hi, n_bins + 1)
 
     fig, (ax_a, ax_l) = plt.subplots(2, 1, figsize=(8, 7), sharex=True)
 
     for scen_idx, (a_vals, l_vals, label) in enumerate(zip(per_scen_a, per_scen_l, labels, strict=True)):
-        color = SCENARIO_PALETTE[scen_idx % len(SCENARIO_PALETTE)]
+        color = scenario_color(scen_idx)
         sd_a = float(np.std(a_vals, ddof=1))
         sd_l = float(np.std(l_vals, ddof=1))
         for ax, vals, sd in ((ax_a, a_vals, sd_a), (ax_l, l_vals, sd_l)):
@@ -394,52 +456,26 @@ def compare_correlations_by_relclass(
     # First pass: compute per-scenario means/lows/highs so we can use the
     # baseline (first scenario) means to annotate non-baseline bars with
     # absolute and relative inflation.
-    per_scen_means = np.full((n_scen, n_classes), np.nan)
-    per_scen_lows = np.full((n_scen, n_classes), np.nan)
-    per_scen_highs = np.full((n_scen, n_classes), np.nan)
-    per_scen_offsets = np.full((n_scen, n_classes), np.nan)
-    for scen_idx, reps in enumerate(scenario_paths):
+    per_scen_envelopes: list[list[Envelope]] = []
+    for reps in scenario_paths:
         per_class = load_pooled_liability_correlations(
             [Path(p) for p in reps], trait=trait, min_generation=min_generation
         )
-        for i, cls in enumerate(class_names):
-            vals = per_class[cls]
-            if not vals:
-                continue
-            arr = np.asarray(vals, dtype=float)
-            per_scen_means[scen_idx, i] = arr.mean()
-            per_scen_lows[scen_idx, i] = arr.min()
-            per_scen_highs[scen_idx, i] = arr.max()
-        per_scen_offsets[scen_idx] = x - total_group_width / 2 + bar_width / 2 + scen_idx * bar_width
+        per_scen_envelopes.append([rep_envelope(per_class[cls]) for cls in class_names])
+    per_scen_offsets = [bar_offsets(x, total_group_width, n_scen, scen_idx) for scen_idx in range(n_scen)]
 
     # Second pass: draw bars.
     for scen_idx, label in enumerate(labels):
-        means = per_scen_means[scen_idx]
-        lows = per_scen_lows[scen_idx]
-        highs = per_scen_highs[scen_idx]
-        offsets = per_scen_offsets[scen_idx]
-        color = SCENARIO_PALETTE[scen_idx % len(SCENARIO_PALETTE)]
-        mask = np.isfinite(means)
-        err_low = np.where(mask, means - lows, 0.0)
-        err_high = np.where(mask, highs - means, 0.0)
-        ax.bar(
-            offsets[mask],
-            means[mask],
-            width=bar_width * 0.95,
-            color=color,
-            label=label,
-            yerr=[err_low[mask], err_high[mask]],
-            capsize=3,
-            linewidth=0,
+        draw_grouped_bars(
+            ax, per_scen_offsets[scen_idx], per_scen_envelopes[scen_idx], bar_width, scenario_color(scen_idx), label
         )
 
     # Third pass: annotate each non-baseline bar with inflation vs scenario 0.
-    baseline = per_scen_means[0]
+    baseline = _envelope_arrays(per_scen_envelopes[0])[0]
     for scen_idx in range(1, n_scen):
-        means = per_scen_means[scen_idx]
-        highs = per_scen_highs[scen_idx]
+        means, _, highs = _envelope_arrays(per_scen_envelopes[scen_idx])
         offsets = per_scen_offsets[scen_idx]
-        color = SCENARIO_PALETTE[scen_idx % len(SCENARIO_PALETTE)]
+        color = scenario_color(scen_idx)
         for i in range(n_classes):
             if not (np.isfinite(means[i]) and np.isfinite(baseline[i])) or baseline[i] <= 0:
                 continue
@@ -561,18 +597,14 @@ def compare_sib_liability_scatter(
     combined = np.concatenate([np.concatenate([a, b]) for a, b in loaded if a.size])
     if combined.size == 0:
         raise ValueError("No sib pairs found in any scenario.")
-    lo = float(np.quantile(combined, 0.001))
-    hi = float(np.quantile(combined, 0.999))
-    pad = 0.05 * (hi - lo)
-    lo -= pad
-    hi += pad
+    lo, hi = padded_range(combined)
 
     fig, ax = plt.subplots(figsize=(6.5, 6.0))
 
     for scen_idx, ((liab_a, liab_b), label) in enumerate(zip(loaded, labels, strict=True)):
         if liab_a.size == 0:
             continue
-        color = SCENARIO_PALETTE[scen_idx % len(SCENARIO_PALETTE)]
+        color = scenario_color(scen_idx)
         r = safe_corrcoef(liab_a, liab_b)
         # Regression through (mean_a, mean_b) with slope = r * (sd_b/sd_a).
         mean_a, mean_b = float(liab_a.mean()), float(liab_b.mean())
@@ -672,52 +704,19 @@ def compare_naive_estimators(
     total_group_width = 0.8
     bar_width = total_group_width / n_scen
 
-    def _stats(arr: np.ndarray) -> tuple[float, float, float]:
-        valid = arr[np.isfinite(arr)]
-        if valid.size == 0:
-            return float("nan"), float("nan"), float("nan")
-        return float(valid.mean()), float(valid.min()), float(valid.max())
-
     for scen_idx, (label, ests) in enumerate(zip(labels, per_scen, strict=True)):
-        color = SCENARIO_PALETTE[scen_idx % len(SCENARIO_PALETTE)]
-        offsets = x - total_group_width / 2 + bar_width / 2 + scen_idx * bar_width
-
-        raw_means = np.full(n_est, np.nan)
-        raw_lows = np.full(n_est, np.nan)
-        raw_highs = np.full(n_est, np.nan)
-        bias_means = np.full(n_est, np.nan)
-        bias_lows = np.full(n_est, np.nan)
-        bias_highs = np.full(n_est, np.nan)
+        color = scenario_color(scen_idx)
+        offsets = bar_offsets(x, total_group_width, n_scen, scen_idx)
         realized = ests.realized
-        for i, key in enumerate(estimator_keys):
-            vals = ests.estimates[key]
-            raw_means[i], raw_lows[i], raw_highs[i] = _stats(vals)
-            # Per-rep bias vs. per-rep realized, then aggregate.
-            if vals.size == realized.size:
-                bias = vals - realized
-                bias_means[i], bias_lows[i], bias_highs[i] = _stats(bias)
-
-        for ax, means, lows, highs in (
-            (ax_raw, raw_means, raw_lows, raw_highs),
-            (ax_bias, bias_means, bias_lows, bias_highs),
-        ):
-            mask = np.isfinite(means)
-            err_low = np.where(mask, means - lows, 0.0)
-            err_high = np.where(mask, highs - means, 0.0)
-            ax.bar(
-                offsets[mask],
-                means[mask],
-                width=bar_width * 0.95,
-                color=color,
-                label=label if ax is ax_raw else None,
-                yerr=[err_low[mask], err_high[mask]],
-                capsize=3,
-                linewidth=0,
-            )
+        raw = [rep_envelope(ests.estimates[key]) for key in estimator_keys]
+        # Per-rep bias vs. per-rep realized, then aggregate.
+        bias = [rep_envelope(ests.estimates[key] - realized) for key in estimator_keys]
+        draw_grouped_bars(ax_raw, offsets, raw, bar_width, color, label)
+        draw_grouped_bars(ax_bias, offsets, bias, bar_width, color, None)
 
         # Short horizontal tick at each scenario's realized h² in the top
         # panel, spanning just that scenario's bar slice of each group.
-        realized_mean, _, _ = _stats(realized)
+        realized_mean = rep_envelope(realized).mean
         if np.isfinite(realized_mean):
             for i in range(n_est):
                 ax_raw.hlines(
@@ -821,11 +820,8 @@ def compare_components_by_generation(
         per_scen_l.append({g: np.concatenate(v) if v else np.array([]) for g, v in l_by_gen.items()})
 
     # Shared x-range across both rows + every panel for cross-comparability.
-    all_vals = np.concatenate([arr for d in per_scen_a + per_scen_l for arr in d.values() if arr.size])
-    lo = float(np.quantile(all_vals, 0.001))
-    hi = float(np.quantile(all_vals, 0.999))
-    pad = 0.05 * (hi - lo)
-    bins = np.linspace(lo - pad, hi + pad, n_bins + 1)
+    lo, hi = padded_range(np.concatenate([arr for d in per_scen_a + per_scen_l for arr in d.values() if arr.size]))
+    bins = np.linspace(lo, hi, n_bins + 1)
 
     # Lighter → darker shade for earlier → later gens, using a perceptually
     # uniform colormap so the gen ordering is unambiguous in the legend.
@@ -909,10 +905,9 @@ def compare_cohort_fs_correlations(
         per_rep = [load_pedigree_estimates_per_generation(Path(p), trait=trait) for p in paths]
         # Union of generations seen across reps, restricted to >= min_generation.
         gens = sorted({g for d in per_rep for g in d if g >= min_generation})
-        means, lows, highs = _per_gen_envelope(per_rep, gens, lambda cell: cell.r_fs)
-        color = SCENARIO_PALETTE[scen_idx % len(SCENARIO_PALETTE)]
-        ax.plot(gens, means, color=color, marker="o", label=label)
-        ax.fill_between(gens, lows, highs, color=color, alpha=0.15, linewidth=0)
+        draw_envelope_line(
+            ax, gens, _per_gen_envelope(per_rep, gens, lambda cell: cell.r_fs), scenario_color(scen_idx), label
+        )
 
     ref = (
         None
@@ -941,30 +936,10 @@ def compare_cohort_fs_correlations(
 def _per_gen_envelope(
     per_rep_pergen: list[dict[int, CohortEstimates]],
     gens: list[int],
-    get_val,
-) -> tuple[list[float], list[float], list[float]]:
-    """Aggregate a per-rep, per-gen scalar to (mean, min, max) per generation.
-
-    Skips reps that don't have an entry for a given generation, and skips
-    NaN values within a generation.  Returns NaN-padded lists where no rep
-    contributed a finite value.
-    """
-    means, lows, highs = [], [], []
-    for g in gens:
-        vals = np.array(
-            [get_val(d[g]) for d in per_rep_pergen if g in d],
-            dtype=float,
-        )
-        vals = vals[np.isfinite(vals)]
-        if vals.size == 0:
-            means.append(float("nan"))
-            lows.append(float("nan"))
-            highs.append(float("nan"))
-        else:
-            means.append(float(vals.mean()))
-            lows.append(float(vals.min()))
-            highs.append(float(vals.max()))
-    return means, lows, highs
+    get_val: Callable[[CohortEstimates], float],
+) -> list[Envelope]:
+    """One :class:`Envelope` per generation of a per-rep cohort value; reps without the generation are skipped."""
+    return [rep_envelope(get_val(d[g]) for d in per_rep_pergen if g in d) for g in gens]
 
 
 def compare_cohort_falconer(
@@ -1006,24 +981,13 @@ def compare_cohort_falconer(
         per_rep_pooled = [load_pedigree_estimates(Path(p), trait=trait, min_generation=None) for p in paths]
         gens = sorted({g for d in per_rep_pergen for g in d if g >= min_generation})
 
-        truth_m, truth_lo, truth_hi = _per_gen_envelope(per_rep_pergen, gens, lambda d: d.realized_h2)
-        falc_m, falc_lo, falc_hi = _per_gen_envelope(per_rep_pergen, gens, lambda d: falconer_h2(d.r_mz, d.r_fs))
+        truth = _per_gen_envelope(per_rep_pergen, gens, lambda d: d.realized_h2)
+        falconer = _per_gen_envelope(per_rep_pergen, gens, lambda d: falconer_h2(d.r_mz, d.r_fs))
+        draw_envelope_line(ax, gens, truth, scenario_color(0), "Realized h²")
+        draw_envelope_line(ax, gens, falconer, scenario_color(1), "Per-cohort Falconer", marker="s")
 
-        truth_color = SCENARIO_PALETTE[0]
-        falc_color = SCENARIO_PALETTE[1]
-
-        ax.plot(gens, truth_m, color=truth_color, marker="o", label="Realized h²")
-        ax.fill_between(gens, truth_lo, truth_hi, color=truth_color, alpha=0.15, linewidth=0)
-        ax.plot(gens, falc_m, color=falc_color, marker="s", label="Per-cohort Falconer")
-        ax.fill_between(gens, falc_lo, falc_hi, color=falc_color, alpha=0.15, linewidth=0)
-
-        pooled_falconer_vals = np.array(
-            [falconer_h2(est.r["MZ"], est.r["FS"]) for est in per_rep_pooled],
-            dtype=float,
-        )
-        pooled_falconer_vals = pooled_falconer_vals[np.isfinite(pooled_falconer_vals)]
-        if pooled_falconer_vals.size:
-            pooled_mean = float(pooled_falconer_vals.mean())
+        pooled_mean = rep_envelope(falconer_h2(est.r["MZ"], est.r["FS"]) for est in per_rep_pooled).mean
+        if np.isfinite(pooled_mean):
             ax.axhline(
                 y=pooled_mean,
                 linestyle="--",
@@ -1126,11 +1090,7 @@ def compare_prevalence_drift(
             paths = paths_per_traj[traj_idx]
             per_gen = _load_per_gen_prevalence([Path(p) for p in paths], trait=trait)
             gens = sorted(per_gen.keys())
-            means = [float(np.mean(per_gen[g])) if per_gen[g] else float("nan") for g in gens]
-            lows = [float(np.min(per_gen[g])) if per_gen[g] else float("nan") for g in gens]
-            highs = [float(np.max(per_gen[g])) if per_gen[g] else float("nan") for g in gens]
-            ax.plot(gens, means, color=color, marker="o", label=line_label)
-            ax.fill_between(gens, lows, highs, color=color, alpha=0.15, linewidth=0)
+            draw_envelope_line(ax, gens, [rep_envelope(per_gen[g]) for g in gens], color, line_label)
 
         if target_prevalence is not None:
             ax.axhline(
@@ -1236,59 +1196,25 @@ def compare_observed_vs_liability_h2(
     total_group_width = 0.7
     bar_width = total_group_width / n_est
 
-    def _stats(arr: np.ndarray) -> tuple[float, float, float]:
-        valid = arr[np.isfinite(arr)]
-        if valid.size == 0:
-            return float("nan"), float("nan"), float("nan")
-        return float(valid.mean()), float(valid.min()), float(valid.max())
-
     # Dedicated palette for the two estimators so scenarios are the x-axis.
     est_colors = ("#4477AA", "#EE6677")
 
     for est_idx, (est_label, est_key) in enumerate(zip(estimator_labels, estimator_keys, strict=True)):
-        raw_means = np.full(n_scen, np.nan)
-        raw_lows = np.full(n_scen, np.nan)
-        raw_highs = np.full(n_scen, np.nan)
-        bias_means = np.full(n_scen, np.nan)
-        bias_lows = np.full(n_scen, np.nan)
-        bias_highs = np.full(n_scen, np.nan)
-        for scen_idx, ests in enumerate(per_scen):
-            vals = ests.estimates[est_key]
-            realized = ests.realized
-            raw_means[scen_idx], raw_lows[scen_idx], raw_highs[scen_idx] = _stats(vals)
-            if vals.size == realized.size:
-                bias_means[scen_idx], bias_lows[scen_idx], bias_highs[scen_idx] = _stats(vals - realized)
-
-        offsets = x - total_group_width / 2 + bar_width / 2 + est_idx * bar_width
+        raw = [rep_envelope(ests.estimates[est_key]) for ests in per_scen]
+        bias = [rep_envelope(ests.estimates[est_key] - ests.realized) for ests in per_scen]
+        offsets = bar_offsets(x, total_group_width, n_est, est_idx)
         color = est_colors[est_idx]
-        for ax, means, lows, highs in (
-            (ax_raw, raw_means, raw_lows, raw_highs),
-            (ax_bias, bias_means, bias_lows, bias_highs),
-        ):
-            mask = np.isfinite(means)
-            err_low = np.where(mask, means - lows, 0.0)
-            err_high = np.where(mask, highs - means, 0.0)
-            ax.bar(
-                offsets[mask],
-                means[mask],
-                width=bar_width * 0.95,
-                color=color,
-                label=est_label if ax is ax_bias else None,
-                yerr=[err_low[mask], err_high[mask]],
-                capsize=3,
-                linewidth=0,
-            )
+        draw_grouped_bars(ax_raw, offsets, raw, bar_width, color, None)
+        draw_grouped_bars(ax_bias, offsets, bias, bar_width, color, est_label)
 
     # Per-scenario realized-h² solid tick in the top panel.  Skip when the
     # scenario's realized h² is effectively equal to the input h² (common in
     # no-AM setups) so we don't double-draw the reference and visually
     # clutter the bars.
     for scen_idx, ests in enumerate(per_scen):
-        realized = ests.realized
-        valid = realized[np.isfinite(realized)]
-        if valid.size == 0:
+        mean_r = rep_envelope(ests.realized).mean
+        if not np.isfinite(mean_r):
             continue
-        mean_r = float(valid.mean())
         if input_h2 is not None and abs(mean_r - input_h2) < 0.01:
             continue
         # Narrow tick (half the bar-group width) centered on the scenario.

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pytest
 import yaml
 
@@ -56,3 +58,18 @@ def test_scenario_parameters_reads_the_report_beside_the_pedigree(tmp_path: Path
     params = {**SIM_DEFAULTS, "A1": 0.5}
     (tmp_path / "report.yaml").write_text(yaml.safe_dump({"inputs": {"parameters": params}}))
     assert compare_scenarios.scenario_parameters(tmp_path / "pedigree.parquet") == sim_params(params)
+
+
+def test_rep_envelope_keeps_finite_values_only():
+    env = compare_scenarios.rep_envelope([0.2, float("nan"), 0.4, float("inf")])
+    assert (env.mean, env.low, env.high) == pytest.approx((0.3, 0.2, 0.4))
+
+
+def test_rep_envelope_of_no_finite_value_is_nan():
+    env = compare_scenarios.rep_envelope([float("nan")])
+    assert all(math.isnan(v) for v in (env.mean, env.low, env.high))
+
+
+def test_bar_offsets_center_each_group_on_x():
+    offsets = [compare_scenarios.bar_offsets(np.array([0.0, 1.0]), 0.8, 2, i) for i in range(2)]
+    assert np.allclose(offsets, [[-0.2, 0.8], [0.2, 1.2]])
