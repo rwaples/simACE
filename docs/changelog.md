@@ -10,6 +10,18 @@ change that breaks the command line, configuration keys, or result files
 CalVer (`YYYY.MM[.patch]`). The 0.1.0 section also lists the changes those
 releases shipped after 2026.05.3.
 
+## Unreleased
+
+### pedigree-graph 0.16
+
+- **simACE requires `pedigree-graph>=0.16,<0.17`.** A parent id that two or
+  more rows name but that has no row of its own is now a founder of the
+  kinship recurrence
+  ([pedigree-graph#67](https://github.com/rwaples/pedigree-graph/issues/67)),
+  so kinship, `F` and the Ne estimators rise on graphs whose parents include
+  such ids: in simACE, the stats runner without `--pedigree`. Full simulated
+  pedigrees, whose founders have `-1` parents, are unchanged.
+
 ## 0.3.0 — 2026-11-06
 
 ### pedigree-graph 0.15
