@@ -1,6 +1,6 @@
 """Fingerprint what the shipped scenarios compute, to gate refactors that must not change it.
 
-Two modes, each writing one JSON file:
+Four modes:
 
 ``decisions``
     Every shipped scenario (``config/*.yaml``), no simulation: the stage argv
@@ -21,11 +21,18 @@ Two modes, each writing one JSON file:
     run with plots: each rep's ``report.yaml``, ``plot_payload.yaml`` and
     figures, byte for byte, with version and date lines masked.
 
+``compare``
+    The example scenarios the ``scripts/examples/compare_*.py`` scripts read,
+    simulated small in a fresh scratch root, then every script (and the
+    figure branches no script reaches, called directly): each PNG, byte for
+    byte, with ``SHA256SUMS``.
+
 Compare two fingerprints with ``diff`` (the files are sorted, indented JSON;
 ``diff -r`` for bytes)::
 
     pixi run python tools/scenario_fingerprint.py decisions -o before.json
     pixi run python tools/scenario_fingerprint.py pipeline --scratch /tmp/fp -o before-pipeline.json
+    pixi run python tools/scenario_fingerprint.py compare --scratch /tmp/fpc -o before-compare/
 """
 
 from __future__ import annotations
@@ -316,6 +323,185 @@ def bytes_mode(scratch: Path, out: Path, jobs: int) -> None:
     print(f"{len(sums)} files from {len(BYTES_SUBSET) + len(BYTES_VARIANTS)} scenarios -> {out}")
 
 
+_AM = ("am_none", "am_weak", "am_strong")
+_MODELS = ("model_ltm", "model_cure_frailty_ln", "model_frailty_wb")
+_E = ("e_flat", "e_rise_mild", "e_rise_steep", "e_fall_steep")
+_STD = ("std", "nostd", "pergen")
+
+#: Example scenarios the compare scripts read (``config/examples.yaml``).
+COMPARE_SUBSET = (*_AM, *_MODELS, *(f"{e}_{m}" for e in _E for m in _STD))
+COMPARE_N = 2000
+COMPARE_REPS = 2
+#: Raised from the default 0.004 so each cohort has more than the 10 MZ pairs a per-cohort Falconer needs.
+COMPARE_P_MZTWIN = 0.02
+#: ``e_flat_std`` at the default twin rate: per-cohort MZ correlations are NaN.
+COMPARE_LOW_MZ = "e_flat_std_low_mz"
+
+
+def _compare_config(scratch: Path) -> None:
+    """Write ``fp.yaml``: the compare subset at ``COMPARE_N``, ``COMPARE_REPS`` reps, plus the low-MZ variant."""
+    from simace.core.yaml_io import load_yaml
+
+    config = scratch / "config"
+    config.mkdir(parents=True)
+    (scratch / "pyproject.toml").write_text('[project]\nname = "simace"\n')
+    (config / "_default.yaml").write_text((ROOT / "config" / "_default.yaml").read_text())
+    shipped = load_yaml(ROOT / "config" / "examples.yaml")
+    raw: dict[str, Any] = {}
+    for name in COMPARE_SUBSET:
+        entry = {k: v for k, v in shipped[name].items() if k != "folder"}
+        entry["N"] = COMPARE_N
+        entry["replicates"] = COMPARE_REPS
+        raw[name] = entry
+    raw[COMPARE_LOW_MZ] = raw["e_flat_std"]
+    for name in COMPARE_SUBSET:
+        raw[name] = _deep_update(raw[name], {"pedigree": {"p_mztwin": COMPARE_P_MZTWIN}})
+    (config / "fp.yaml").write_text(yaml.safe_dump(raw, sort_keys=True))
+
+
+def _compare_cases(results: Path) -> dict[str, list[str]]:
+    """Each script case's argv after the script path, keyed ``<case>`` (the PNG is ``<case>.png``).
+
+    Update the argv here when a script's flags change; the PNGs must not.
+    """
+
+    def files(names: tuple[str, ...], basename: str) -> list[str]:
+        return [str(results / n / f"rep{r}" / basename) for n in names for r in range(1, COMPARE_REPS + 1)]
+
+    def reps(names: tuple[str, ...]) -> list[str]:
+        return ["--reps-per-scenario", *[str(COMPARE_REPS)] * len(names)]
+
+    def labels(names: tuple[str, ...]) -> list[str]:
+        return ["--labels", *names]
+
+    e_std = tuple(f"{e}_std" for e in _E)
+    expected_ac = ["--expected-A", "0.5", "--expected-C", "0.0"]
+    expected_e = ["--expected-E", *["0.5"] * 10]  # e_flat_std's E schedule
+    min_gen = ["--min-generation", "5"]  # max(1, G_pheno // 2)
+    cases: dict[str, list[str]] = {}
+    for tag, am, e, models in (("all", _AM, e_std, _MODELS), ("one", _AM[:1], e_std[:1], _MODELS[:1])):
+        am_ped, e_ped = files(am, "pedigree.parquet"), files(e, "pedigree.parquet")
+        cases |= {
+            f"am_component_distributions_{tag}": [*am_ped, *reps(am), *labels(am), *min_gen],
+            f"am_correlations_{tag}": [*am_ped, *reps(am), *labels(am), *min_gen],
+            f"am_heritability_{tag}": [
+                *files(am, "report.yaml"),
+                *reps(am),
+                *labels(am),
+                *expected_ac,
+                "--expected-E",
+                "0.5",
+            ],
+            f"am_naive_estimators_{tag}": [*am_ped, *reps(am), *labels(am), "--input-h2", "0.5", *min_gen],
+            f"am_sib_liability_{tag}": [*am_ped, *reps(am), *labels(am), *min_gen],
+            f"increasing_e_cohort_falconer_{tag}": [*e_ped, *reps(e), *labels(e)],
+            f"increasing_e_cohort_fs_{tag}": [*e_ped, *reps(e), *labels(e)],
+            f"increasing_e_components_by_gen_{tag}": [*e_ped, *reps(e), *labels(e)],
+            f"increasing_e_trajectory_{tag}": [
+                *files(e, "report.yaml"),
+                *reps(e),
+                *labels(e),
+                *expected_ac,
+                *expected_e,
+            ],
+            f"increasing_e_prevalence_{tag}": [
+                *files(tuple(f"{t.removesuffix('_std')}_{m}" for t in e for m in _STD), "report.yaml"),
+                "--reps-per-trajectory",
+                *[str(COMPARE_REPS)] * len(e),
+                *labels(e),
+            ],
+            f"observed_vs_liability_h2_{tag}": [
+                "--pedigree",
+                *files(models, "pedigree.parquet"),
+                "--report",
+                *files(models, "report.yaml"),
+                *reps(models),
+                *labels(models),
+                "--input-h2",
+                "0.5",
+            ],
+        }
+    low = (COMPARE_LOW_MZ,)
+    for script in ("increasing_e_cohort_falconer", "increasing_e_cohort_fs"):
+        cases[f"{script}_low_mz"] = [*files(low, "pedigree.parquet"), *reps(low), *labels(low)]
+    # Every script except observed-vs-liability takes its files through --inputs.
+    for key, argv in cases.items():
+        if not key.startswith("observed_vs_liability"):
+            cases[key] = ["--inputs", *argv]
+    return cases
+
+
+def _compare_direct(results: Path, out: Path) -> list[str]:
+    """Render the figure branches no script reaches; return the PNG names.
+
+    Update the calls here when a figure's signature changes; the PNGs must not.
+    """
+    from simace.plotting import compare_scenarios as cs
+
+    def files(name: str, basename: str) -> list[Path]:
+        return [results / name / f"rep{r}" / basename for r in range(1, COMPARE_REPS + 1)]
+
+    e_std = [f"{e}_std" for e in _E]
+    am_ped = [files(n, "pedigree.parquet") for n in _AM]
+    models = list(_MODELS)
+    written = {
+        # Two standardize series (no per_generation), and no target line.
+        "direct_prevalence_two_series": lambda p: cs.compare_prevalence_drift(
+            [files(f"{e}_std", "report.yaml") for e in _E],
+            [files(f"{e}_nostd", "report.yaml") for e in _E],
+            list(_E),
+            p,
+        ),
+        # No reference lines or reference values.
+        "direct_trajectory_no_expected": lambda p: cs.compare_realized_variance_trajectory(
+            [files(n, "report.yaml") for n in e_std], e_std, p
+        ),
+        "direct_correlations_no_reference": lambda p: cs.compare_correlations_by_relclass(am_ped, list(_AM), p),
+        "direct_cohort_fs_no_reference": lambda p: cs.compare_cohort_fs_correlations(
+            [files(n, "pedigree.parquet") for n in e_std], e_std, p
+        ),
+        "direct_naive_no_input_h2": lambda p: cs.compare_naive_estimators(am_ped, list(_AM), p),
+        "direct_observed_no_input_h2": lambda p: cs.compare_observed_vs_liability_h2(
+            [files(n, "pedigree.parquet") for n in models], [files(n, "report.yaml") for n in models], models, p
+        ),
+        # The script always passes the first scenario's parameters; this draws the reference lines from them too.
+        "direct_correlations_reference": lambda p: cs.compare_correlations_by_relclass(
+            am_ped, list(_AM), p, reference=cs.scenario_parameters(am_ped[0][0])
+        ),
+    }
+    for name, render in written.items():
+        render(out / f"{name}.png")
+    return [f"{name}.png" for name in written]
+
+
+def compare_mode(scratch: Path, out: Path, jobs: int) -> None:
+    """Simulate the compare subset under a fresh ``scratch``, render every case into ``out``, write ``SHA256SUMS``."""
+    if scratch.exists() and any(scratch.iterdir()):
+        raise SystemExit(f"{scratch} is not empty; the compare mode needs a fresh scratch root")
+    out.mkdir(parents=True, exist_ok=True)
+    _compare_config(scratch)
+    roots = ["--config-dir", str(scratch / "config"), "--results", str(scratch / "results")]
+    roots += ["--logs", str(scratch / "logs")]
+    done = subprocess.run(["simace", "run", "fp", "--no-plots", "--jobs", str(jobs), *roots], cwd=scratch, check=False)
+    if done.returncode != 0:
+        raise SystemExit(f"simace run exited {done.returncode}")
+    results = scratch / "results" / "fp"
+    names = []
+    for case, argv in _compare_cases(results).items():
+        stem = case.removesuffix("_low_mz").removesuffix("_all").removesuffix("_one")
+        script = ROOT / "scripts" / "examples" / f"compare_{stem}.py"
+        cmd = [sys.executable, str(script), *argv, "--output", str(out / f"{case}.png")]
+        subprocess.run(cmd, cwd=ROOT, check=True)
+        names.append(f"{case}.png")
+    names += _compare_direct(results, out)
+    missing = [n for n in names if not (out / n).is_file()]
+    if missing:
+        raise SystemExit(f"missing figures: {missing}")
+    sums = [f"{hashlib.sha256((out / n).read_bytes()).hexdigest()}  {n}\n" for n in sorted(names)]
+    (out / "SHA256SUMS").write_text("".join(sums))
+    print(f"{len(sums)} figures -> {out}")
+
+
 def main() -> None:
     """Parse the mode and run it."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
@@ -330,11 +516,17 @@ def main() -> None:
     b.add_argument("--scratch", type=Path, required=True, help="Empty scratch root for config/results/logs")
     b.add_argument("-o", "--output", type=Path, required=True, help="Directory for the masked copies")
     b.add_argument("--jobs", type=int, default=6)
+    c = sub.add_parser("compare", help="The example comparison figures, byte for byte, on small simulated inputs")
+    c.add_argument("--scratch", type=Path, required=True, help="Empty scratch root for config/results/logs")
+    c.add_argument("-o", "--output", type=Path, required=True, help="Directory for the PNGs and SHA256SUMS")
+    c.add_argument("--jobs", type=int, default=6)
     args = parser.parse_args()
     if args.mode == "decisions":
         decisions(args.output)
     elif args.mode == "pipeline":
         pipeline(args.scratch, args.output, args.jobs)
+    elif args.mode == "compare":
+        compare_mode(args.scratch, args.output, args.jobs)
     else:
         bytes_mode(args.scratch, args.output, args.jobs)
 
