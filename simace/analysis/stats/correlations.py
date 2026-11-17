@@ -17,6 +17,7 @@ row for the symmetric codes; same-sex strata read sex from both members.
 from __future__ import annotations
 
 import math
+from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -28,7 +29,11 @@ from simace.core.numerics import finite_or_none
 from simace.core.relationships import SEX_LEVELS
 
 from .moments import Stratum, select_levels
+from .naive_h2 import NaiveH2, naive_h2
 from .tetrachoric import tetrachoric_corr_se, tetrachoric_from_table
+
+#: The relationship codes :func:`~simace.analysis.stats.naive_h2.naive_h2` reads.
+_NAIVE_CODES = ("MZ", "FS", "MHS", "PHS", "1C")
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -360,35 +365,17 @@ def compute_observed_h2_estimators(
     aff = affected_correlations or {}
     po_all = parent_offspring_affected_corr or {}
 
-    def _two_diff(r_a: Any, r_b: Any) -> float | None:
-        if r_a is None or r_b is None:
-            return None
-        return 2.0 * (float(r_a) - float(r_b))
-
-    def _scale(r: Any, factor: float) -> float | None:
-        if r is None:
-            return None
-        return factor * float(r)
-
-    def _mean_hs(r_mhs: Any, r_phs: Any) -> float | None:
-        vals = [float(v) for v in (r_mhs, r_phs) if v is not None]
-        if not vals:
-            return None
-        return 4.0 * (sum(vals) / len(vals))
+    def _nan(value: Any) -> float:
+        return math.nan if value is None else float(value)
 
     result: dict[str, Any] = {}
     for trait_num in [1, 2]:
         key = f"trait{trait_num}"
         rs = aff.get(key, {}) or {}
         po_entry = po_all.get(key, {}) or {}
-        po_slope = po_entry.get("slope")
-        result[key] = {
-            "falconer": _two_diff(rs.get("MZ"), rs.get("FS")),
-            "sibs": _scale(rs.get("FS"), 2.0),
-            "po": float(po_slope) if po_slope is not None else None,
-            "hs": _mean_hs(rs.get("MHS"), rs.get("PHS")),
-            "cousins": _scale(rs.get("1C"), 8.0),
-        }
+        # The report marks a missing correlation None; naive_h2 marks it NaN.
+        est = naive_h2({code: _nan(rs.get(code)) for code in _NAIVE_CODES}, _nan(po_entry.get("slope")))
+        result[key] = {f.name: finite_or_none(getattr(est, f.name)) for f in fields(NaiveH2)}
     return result
 
 

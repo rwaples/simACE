@@ -57,6 +57,10 @@
 
 ::: simace.analysis.stats.heritability
 
+### stats.naive_h2
+
+::: simace.analysis.stats.naive_h2
+
 ### stats.pedigree_estimates
 
 ::: simace.analysis.stats.pedigree_estimates

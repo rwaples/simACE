@@ -90,6 +90,7 @@ simACE/
 │   │   │   ├── censoring.py              # Censoring window, confusion matrix, cascade, person-years
 │   │   │   ├── effective_size.py         # Per-rep effective population size summary
 │   │   │   ├── heritability.py           # GE-covariance and SNP-like h², Dempster-Lerner factor
+│   │   │   ├── naive_h2.py               # Falconer and the other naive h² estimators, one definition
 │   │   │   ├── pedigree_estimates.py     # One replicate's pedigree estimates for cross-scenario comparisons
 │   │   │   └── sampling.py               # Downsampling for scatter/histogram plot inputs
 │   │   ├── quality/                      # Analyze's quality checks (one module per check family; ADR 0028)

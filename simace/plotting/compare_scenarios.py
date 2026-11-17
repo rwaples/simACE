@@ -23,29 +23,31 @@ __all__ = [
     "compare_prevalence_drift",
     "compare_realized_variance_trajectory",
     "compare_sib_liability_scatter",
-    "load_naive_estimator_h2",
-    "load_observed_vs_liability_h2",
     "load_per_generation",
-    "load_sib_pair_liabilities",
     "scenario_parameters",
 ]
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
+from simace.analysis.stats.naive_h2 import falconer_h2
 from simace.analysis.stats.pedigree_estimates import (
     POOLED_RELATIONSHIP_CLASSES,
+    load_naive_estimator_h2,
+    load_observed_vs_liability_h2,
     load_pedigree_estimates,
     load_pedigree_estimates_per_generation,
     load_pooled_liability_correlations,
+    load_sib_pair_liabilities,
 )
 from simace.core.numerics import safe_corrcoef
 from simace.core.parquet import load_parquet
-from simace.core.relationships import reference_corr
+from simace.core.relationships import RELATIONSHIP_TYPES, reference_corr
 from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_style import (
     apply_nature_style,
@@ -54,6 +56,9 @@ from simace.plotting.plot_style import (
 from simace.plotting.plot_utils import finalize_plot
 from simace.plotting.stats_report import plotting_report_view, report_per_generation
 from simace.simulation.params import SimulationParams
+
+if TYPE_CHECKING:
+    from simace.analysis.stats.pedigree_estimates import CohortEstimates
 
 logger = logging.getLogger(__name__)
 
@@ -487,65 +492,6 @@ def compare_correlations_by_relclass(
 # ---------------------------------------------------------------------------
 
 
-def load_sib_pair_liabilities(
-    pedigree_paths: list[Path],
-    trait: int = 1,
-    min_generation: int | None = None,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Return arrays of paired sibling liabilities across all reps.
-
-    Picks two full siblings per mating — the first two by ``id`` within each
-    ``(mother, father)`` group.  Founders (mother == -1) and MZ twins
-    (``twin != -1``) are excluded, so the returned pairs have an expected
-    kinship of exactly 0.5 under random mating.
-
-    Args:
-        pedigree_paths: one recorded ``pedigree.parquet`` path per replicate.
-        trait: 1 or 2.
-        min_generation: if set, restrict to individuals in generations
-            ``>= min_generation``; useful for waiting out AM's burn-in period.
-
-    Returns:
-        ``(liab_a, liab_b)`` 1-D arrays of equal length, one element per family.
-    """
-    liab_col = f"liability{trait}"
-    a_list: list[np.ndarray] = []
-    b_list: list[np.ndarray] = []
-    for path in pedigree_paths:
-        df = load_parquet(
-            path,
-            columns=["id", "mother", "father", "twin", "generation", liab_col],
-        )
-        mothers = df["mother"].to_numpy()
-        keep = (mothers >= 0) & (df["twin"].to_numpy() == -1)
-        if min_generation is not None:
-            keep &= df["generation"].to_numpy() >= min_generation
-        mothers = df["mother"].to_numpy()[keep].astype(np.int64)
-        fathers = df["father"].to_numpy()[keep].astype(np.int64)
-        ids = df["id"].to_numpy()[keep]
-        liab = df[liab_col].to_numpy()[keep].astype(float)
-        if mothers.size == 0:
-            continue
-        # First two children per (mother, father) mating, in ascending id
-        # order — the sort/groupby-cumcount/merge idiom this replaced.
-        # Fathers shift by +1 so a severed father (-1) keys injectively.
-        base = np.int64(max(int(mothers.max()), int(fathers.max())) + 2)
-        pair_key = mothers * base + (fathers + 1)
-        order = np.lexsort((ids, pair_key))
-        sorted_keys = pair_key[order]
-        starts = np.flatnonzero(np.r_[True, sorted_keys[1:] != sorted_keys[:-1]])
-        sizes = np.diff(np.r_[starts, len(sorted_keys)])
-        multi = starts[sizes >= 2]
-        liab_sorted = liab[order]
-        a_list.append(liab_sorted[multi])
-        b_list.append(liab_sorted[multi + 1])
-    if not a_list:
-        # Every pedigree was skipped (no qualifying pairs anywhere, or no paths
-        # given) — np.concatenate rejects an empty list.
-        return np.empty(0, dtype=float), np.empty(0, dtype=float)
-    return np.concatenate(a_list), np.concatenate(b_list)
-
-
 def _covariance_ellipse_xy(
     x: np.ndarray,
     y: np.ndarray,
@@ -660,59 +606,17 @@ def compare_sib_liability_scatter(
 # Naive h² estimators
 # ---------------------------------------------------------------------------
 
-# (display label, internal key).  Each estimator maps one correlation (or
+# (display label, NaiveH2 field).  Each estimator maps one correlation (or
 # regression slope) into an h² estimate that is unbiased under random mating
 # but drifts under AM, by different amounts for different relationship
-# classes.
+# classes (simace.analysis.stats.naive_h2).
 NAIVE_ESTIMATOR_DEFS: tuple[tuple[str, str], ...] = (
     ("Twin Falconer", "falconer"),
     ("Sibs only", "sibs"),
     ("Midparent PO", "po"),
     ("Half-sibs", "hs"),
-    ("Cousins", "1c"),
+    ("Cousins", "cousins"),
 )
-
-
-def load_naive_estimator_h2(
-    pedigree_paths: list[Path],
-    trait: int = 1,
-    min_generation: int | None = None,
-) -> dict[str, np.ndarray]:
-    """Per-rep h² from five naive estimators + per-rep realized h².
-
-    All quantities are computed directly from the recorded ``pedigree.parquet`` so the
-    generation filter applies consistently to every estimator *and* to the
-    realized-h² reference.
-
-    Args:
-        pedigree_paths: one recorded ``pedigree.parquet`` path per replicate.
-        trait: 1 or 2.
-        min_generation: passed through to :func:`load_pedigree_estimates`.
-
-    Returns:
-        Dict keyed by ``{'falconer', 'sibs', 'po', 'hs', '1c', 'realized'}``,
-        each an array of per-rep floats (NaN where there weren't enough
-        pairs of a given type).
-    """
-    out: dict[str, list[float]] = {k: [] for k in ("falconer", "sibs", "po", "hs", "1c", "realized")}
-    for path in pedigree_paths:
-        est = load_pedigree_estimates(path, trait=trait, min_generation=min_generation)
-        r_mz = est.get("MZ", float("nan"))
-        r_fs = est.get("FS", float("nan"))
-        r_mhs = est.get("MHS", float("nan"))
-        r_phs = est.get("PHS", float("nan"))
-        r_1c = est.get("1C", float("nan"))
-
-        falconer = 2.0 * (r_mz - r_fs) if np.isfinite(r_mz) and np.isfinite(r_fs) else float("nan")
-        out["falconer"].append(falconer)
-        out["sibs"].append(2.0 * r_fs if np.isfinite(r_fs) else float("nan"))
-        out["po"].append(est.get("po_slope", float("nan")))
-        hs_vals = [r for r in (r_mhs, r_phs) if np.isfinite(r)]
-        out["hs"].append(4.0 * float(np.mean(hs_vals)) if hs_vals else float("nan"))
-        out["1c"].append(8.0 * r_1c if np.isfinite(r_1c) else float("nan"))
-        out["realized"].append(est.get("realized_h2", float("nan")))
-
-    return {k: np.asarray(vals, dtype=float) for k, vals in out.items()}
 
 
 def compare_naive_estimators(
@@ -754,7 +658,7 @@ def compare_naive_estimators(
     estimator_keys = [d[1] for d in NAIVE_ESTIMATOR_DEFS]
     n_est = len(estimator_keys)
 
-    per_scen: list[dict[str, np.ndarray]] = [
+    per_scen = [
         load_naive_estimator_h2(
             [Path(p) for p in ped_paths],
             trait=trait,
@@ -784,9 +688,9 @@ def compare_naive_estimators(
         bias_means = np.full(n_est, np.nan)
         bias_lows = np.full(n_est, np.nan)
         bias_highs = np.full(n_est, np.nan)
-        realized = ests["realized"]
+        realized = ests.realized
         for i, key in enumerate(estimator_keys):
-            vals = ests[key]
+            vals = ests.estimates[key]
             raw_means[i], raw_lows[i], raw_highs[i] = _stats(vals)
             # Per-rep bias vs. per-rep realized, then aggregate.
             if vals.size == realized.size:
@@ -1005,7 +909,7 @@ def compare_cohort_fs_correlations(
         per_rep = [load_pedigree_estimates_per_generation(Path(p), trait=trait) for p in paths]
         # Union of generations seen across reps, restricted to >= min_generation.
         gens = sorted({g for d in per_rep for g in d if g >= min_generation})
-        means, lows, highs = _per_gen_envelope(per_rep, gens, lambda cell: cell["FS"])
+        means, lows, highs = _per_gen_envelope(per_rep, gens, lambda cell: cell.r_fs)
         color = SCENARIO_PALETTE[scen_idx % len(SCENARIO_PALETTE)]
         ax.plot(gens, means, color=color, marker="o", label=label)
         ax.fill_between(gens, lows, highs, color=color, alpha=0.15, linewidth=0)
@@ -1035,7 +939,7 @@ def compare_cohort_fs_correlations(
 
 
 def _per_gen_envelope(
-    per_rep_pergen: list[dict[int, dict[str, float]]],
+    per_rep_pergen: list[dict[int, CohortEstimates]],
     gens: list[int],
     get_val,
 ) -> tuple[list[float], list[float], list[float]]:
@@ -1102,12 +1006,8 @@ def compare_cohort_falconer(
         per_rep_pooled = [load_pedigree_estimates(Path(p), trait=trait, min_generation=None) for p in paths]
         gens = sorted({g for d in per_rep_pergen for g in d if g >= min_generation})
 
-        truth_m, truth_lo, truth_hi = _per_gen_envelope(per_rep_pergen, gens, lambda d: d["realized_h2"])
-        falc_m, falc_lo, falc_hi = _per_gen_envelope(
-            per_rep_pergen,
-            gens,
-            lambda d: 2.0 * (d["MZ"] - d["FS"]) if np.isfinite(d["MZ"]) and np.isfinite(d["FS"]) else float("nan"),
-        )
+        truth_m, truth_lo, truth_hi = _per_gen_envelope(per_rep_pergen, gens, lambda d: d.realized_h2)
+        falc_m, falc_lo, falc_hi = _per_gen_envelope(per_rep_pergen, gens, lambda d: falconer_h2(d.r_mz, d.r_fs))
 
         truth_color = SCENARIO_PALETTE[0]
         falc_color = SCENARIO_PALETTE[1]
@@ -1118,7 +1018,7 @@ def compare_cohort_falconer(
         ax.fill_between(gens, falc_lo, falc_hi, color=falc_color, alpha=0.15, linewidth=0)
 
         pooled_falconer_vals = np.array(
-            [2.0 * (est.get("MZ", float("nan")) - est.get("FS", float("nan"))) for est in per_rep_pooled],
+            [falconer_h2(est.r["MZ"], est.r["FS"]) for est in per_rep_pooled],
             dtype=float,
         )
         pooled_falconer_vals = pooled_falconer_vals[np.isfinite(pooled_falconer_vals)]
@@ -1272,59 +1172,14 @@ OBSERVED_LIABILITY_ESTIMATOR_DEFS: tuple[tuple[str, str], ...] = (
 
 
 def _load_tetrachoric(stats_report_path: Path, trait: int) -> dict[str, float]:
-    """Return a flat ``{MZ, FS, MO, FO, MHS, PHS, 1C}`` tetrachoric r dict."""
+    """Tetrachoric r on affected status for every relationship code; NaN where the report has none."""
     ps = plotting_report_view(load_yaml(stats_report_path))
     tet = ps.sample.tetrachoric.get(f"trait{trait}", {}) or {}
     out: dict[str, float] = {}
-    for key, entry in tet.items():
-        r = (entry or {}).get("r")
-        out[key] = float(r) if r is not None else float("nan")
+    for code in RELATIONSHIP_TYPES:
+        r = (tet.get(code) or {}).get("r")
+        out[code] = float(r) if r is not None else float("nan")
     return out
-
-
-def load_observed_vs_liability_h2(
-    pedigree_paths: list[Path],
-    report_paths: list[Path],
-    trait: int = 1,
-    min_generation: int | None = None,
-) -> dict[str, np.ndarray]:
-    """Per-rep liability-Falconer + tetrachoric-Falconer h² + realized h².
-
-    The two input lists must be in the same replicate order.  Liability
-    correlations and realized h² come from :func:`load_pedigree_estimates`
-    (the recorded pedigree.parquet); tetrachoric correlations come from
-    ``report.yaml``.
-
-    Args:
-        pedigree_paths: one recorded ``pedigree.parquet`` path per rep.
-        report_paths: one ``report.yaml`` path per replicate.
-        trait: 1 or 2.
-        min_generation: forwarded to :func:`load_pedigree_estimates` for the
-            liability correlations and realized h².  Tetrachoric values in
-            ``report.yaml`` values are pre-aggregated over phenotyped
-            generations and not re-filtered here.
-
-    Returns:
-        Dict keyed ``{'liability_falconer', 'tetrachoric_falconer',
-        'realized'}``; each value is a per-rep ``np.ndarray``.
-    """
-    out: dict[str, list[float]] = {k: [] for k in ("liability_falconer", "tetrachoric_falconer", "realized")}
-    for ped_path, ps_path in zip(pedigree_paths, report_paths, strict=True):
-        est = load_pedigree_estimates(ped_path, trait=trait, min_generation=min_generation)
-        r_mz_liab = est.get("MZ", float("nan"))
-        r_fs_liab = est.get("FS", float("nan"))
-        tet = _load_tetrachoric(ps_path, trait=trait)
-        r_mz_tet = tet.get("MZ", float("nan"))
-        r_fs_tet = tet.get("FS", float("nan"))
-
-        out["liability_falconer"].append(
-            2.0 * (r_mz_liab - r_fs_liab) if np.isfinite(r_mz_liab) and np.isfinite(r_fs_liab) else float("nan")
-        )
-        out["tetrachoric_falconer"].append(
-            2.0 * (r_mz_tet - r_fs_tet) if np.isfinite(r_mz_tet) and np.isfinite(r_fs_tet) else float("nan")
-        )
-        out["realized"].append(est.get("realized_h2", float("nan")))
-    return {k: np.asarray(v, dtype=float) for k, v in out.items()}
 
 
 def compare_observed_vs_liability_h2(
@@ -1353,7 +1208,8 @@ def compare_observed_vs_liability_h2(
         labels: display label per scenario.
         output_path: image path to save.
         trait: 1 or 2.
-        min_generation: forwarded to :func:`load_pedigree_estimates`.
+        min_generation: forwarded to
+            :func:`~simace.analysis.stats.pedigree_estimates.load_pedigree_estimates`.
         input_h2: simulation input h²; drawn as a dashed reference line.
     """
     n_scen = len(labels)
@@ -1368,7 +1224,7 @@ def compare_observed_vs_liability_h2(
     per_scen = [
         load_observed_vs_liability_h2(
             [Path(p) for p in ped_paths],
-            [Path(p) for p in ps_paths],
+            [_load_tetrachoric(Path(p), trait=trait) for p in ps_paths],
             trait=trait,
             min_generation=min_generation,
         )
@@ -1397,8 +1253,8 @@ def compare_observed_vs_liability_h2(
         bias_lows = np.full(n_scen, np.nan)
         bias_highs = np.full(n_scen, np.nan)
         for scen_idx, ests in enumerate(per_scen):
-            vals = ests[est_key]
-            realized = ests["realized"]
+            vals = ests.estimates[est_key]
+            realized = ests.realized
             raw_means[scen_idx], raw_lows[scen_idx], raw_highs[scen_idx] = _stats(vals)
             if vals.size == realized.size:
                 bias_means[scen_idx], bias_lows[scen_idx], bias_highs[scen_idx] = _stats(vals - realized)
@@ -1428,7 +1284,7 @@ def compare_observed_vs_liability_h2(
     # no-AM setups) so we don't double-draw the reference and visually
     # clutter the bars.
     for scen_idx, ests in enumerate(per_scen):
-        realized = ests["realized"]
+        realized = ests.realized
         valid = realized[np.isfinite(realized)]
         if valid.size == 0:
             continue
