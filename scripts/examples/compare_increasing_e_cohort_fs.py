@@ -1,10 +1,10 @@
 r"""Per-cohort full-sib liability correlation across E schedules.
 
-Example (the reference line uses the first scenario's parameters, from the
-``report.yaml`` beside its first pedigree)::
+Example (the reference line uses the first scenario's parameters, from its
+first rep's ``report.yaml``)::
 
     python scripts/examples/compare_increasing_e_cohort_fs.py \
-        --inputs results/examples/e_{flat,rise_mild,rise_steep,fall_steep}_std/rep{1,2,3}/pedigree.parquet \
+        --inputs results/examples/e_{flat,rise_mild,rise_steep,fall_steep}_std/rep{1,2,3} \
         --reps-per-scenario 3 3 3 3
 """
 
@@ -12,7 +12,8 @@ import argparse
 from pathlib import Path
 
 from simace import setup_logging
-from simace.plotting.compare_scenarios import compare_cohort_fs_correlations, scenario_parameters
+from simace.plotting.compare import group_reps
+from simace.plotting.compare.increasing_e import compare_cohort_fs_correlations
 
 INCREASING_E_LABELS = [
     "E flat at 0.5",
@@ -23,9 +24,9 @@ INCREASING_E_LABELS = [
 
 
 def main(argv: list[str] | None = None) -> None:
-    """Parse flags, regroup the flat input list per scenario, and render."""
+    """Parse flags, group the replicate directories per scenario, and render."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--inputs", nargs="+", required=True, help="recorded pedigree.parquet files, scenario-major")
+    parser.add_argument("--inputs", nargs="+", required=True, help="replicate directories, scenario-major")
     parser.add_argument("--output", default="docs/images/examples/increasing_e/fs_corr_by_gen.png")
     parser.add_argument("--labels", nargs="+", default=INCREASING_E_LABELS)
     parser.add_argument("--reps-per-scenario", nargs="+", type=int, required=True)
@@ -35,22 +36,12 @@ def main(argv: list[str] | None = None) -> None:
 
     setup_logging(log_file=args.log, tag="examples/increasing_e_cohort_fs")
 
-    labels = args.labels
-    reps_per_scenario = args.reps_per_scenario
-
-    inputs = list(args.inputs)
-    pedigree_paths: list[list[Path]] = []
-    offset = 0
-    for n_reps in reps_per_scenario:
-        pedigree_paths.append([Path(p) for p in inputs[offset : offset + n_reps]])
-        offset += n_reps
-
+    scenarios = group_reps(args.labels, args.inputs, args.reps_per_scenario)
     compare_cohort_fs_correlations(
-        pedigree_paths_per_scenario=pedigree_paths,
-        labels=labels,
-        output_path=Path(args.output),
+        scenarios,
+        Path(args.output),
         trait=1,
-        reference=scenario_parameters(pedigree_paths[0][0]),
+        reference=scenarios[0].parameters(),
         min_generation=args.min_generation,
     )
 

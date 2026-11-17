@@ -44,9 +44,12 @@ import math
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -365,8 +368,8 @@ def _compare_cases(results: Path) -> dict[str, list[str]]:
     Update the argv here when a script's flags change; the PNGs must not.
     """
 
-    def files(names: tuple[str, ...], basename: str) -> list[str]:
-        return [str(results / n / f"rep{r}" / basename) for n in names for r in range(1, COMPARE_REPS + 1)]
+    def inputs(names: tuple[str, ...]) -> list[str]:
+        return ["--inputs", *[str(results / n / f"rep{r}") for n in names for r in range(1, COMPARE_REPS + 1)]]
 
     def reps(names: tuple[str, ...]) -> list[str]:
         return ["--reps-per-scenario", *[str(COMPARE_REPS)] * len(names)]
@@ -374,60 +377,36 @@ def _compare_cases(results: Path) -> dict[str, list[str]]:
     def labels(names: tuple[str, ...]) -> list[str]:
         return ["--labels", *names]
 
+    def scenarios(names: tuple[str, ...]) -> list[str]:
+        return [*inputs(names), *reps(names), *labels(names)]
+
     e_std = tuple(f"{e}_std" for e in _E)
     expected_ac = ["--expected-A", "0.5", "--expected-C", "0.0"]
     expected_e = ["--expected-E", *["0.5"] * 10]  # e_flat_std's E schedule
     min_gen = ["--min-generation", "5"]  # max(1, G_pheno // 2)
     cases: dict[str, list[str]] = {}
     for tag, am, e, models in (("all", _AM, e_std, _MODELS), ("one", _AM[:1], e_std[:1], _MODELS[:1])):
-        am_ped, e_ped = files(am, "pedigree.parquet"), files(e, "pedigree.parquet")
         cases |= {
-            f"am_component_distributions_{tag}": [*am_ped, *reps(am), *labels(am), *min_gen],
-            f"am_correlations_{tag}": [*am_ped, *reps(am), *labels(am), *min_gen],
-            f"am_heritability_{tag}": [
-                *files(am, "report.yaml"),
-                *reps(am),
-                *labels(am),
-                *expected_ac,
-                "--expected-E",
-                "0.5",
-            ],
-            f"am_naive_estimators_{tag}": [*am_ped, *reps(am), *labels(am), "--input-h2", "0.5", *min_gen],
-            f"am_sib_liability_{tag}": [*am_ped, *reps(am), *labels(am), *min_gen],
-            f"increasing_e_cohort_falconer_{tag}": [*e_ped, *reps(e), *labels(e)],
-            f"increasing_e_cohort_fs_{tag}": [*e_ped, *reps(e), *labels(e)],
-            f"increasing_e_components_by_gen_{tag}": [*e_ped, *reps(e), *labels(e)],
-            f"increasing_e_trajectory_{tag}": [
-                *files(e, "report.yaml"),
-                *reps(e),
-                *labels(e),
-                *expected_ac,
-                *expected_e,
-            ],
+            f"am_component_distributions_{tag}": [*scenarios(am), *min_gen],
+            f"am_correlations_{tag}": [*scenarios(am), *min_gen],
+            f"am_heritability_{tag}": [*scenarios(am), *expected_ac, "--expected-E", "0.5"],
+            f"am_naive_estimators_{tag}": [*scenarios(am), "--input-h2", "0.5", *min_gen],
+            f"am_sib_liability_{tag}": [*scenarios(am), *min_gen],
+            f"increasing_e_cohort_falconer_{tag}": scenarios(e),
+            f"increasing_e_cohort_fs_{tag}": scenarios(e),
+            f"increasing_e_components_by_gen_{tag}": scenarios(e),
+            f"increasing_e_trajectory_{tag}": [*scenarios(e), *expected_ac, *expected_e],
             f"increasing_e_prevalence_{tag}": [
-                *files(tuple(f"{t.removesuffix('_std')}_{m}" for t in e for m in _STD), "report.yaml"),
+                *inputs(tuple(f"{t.removesuffix('_std')}_{m}" for t in e for m in _STD)),
                 "--reps-per-trajectory",
                 *[str(COMPARE_REPS)] * len(e),
                 *labels(e),
             ],
-            f"observed_vs_liability_h2_{tag}": [
-                "--pedigree",
-                *files(models, "pedigree.parquet"),
-                "--report",
-                *files(models, "report.yaml"),
-                *reps(models),
-                *labels(models),
-                "--input-h2",
-                "0.5",
-            ],
+            f"observed_vs_liability_h2_{tag}": [*scenarios(models), "--input-h2", "0.5"],
         }
     low = (COMPARE_LOW_MZ,)
     for script in ("increasing_e_cohort_falconer", "increasing_e_cohort_fs"):
-        cases[f"{script}_low_mz"] = [*files(low, "pedigree.parquet"), *reps(low), *labels(low)]
-    # Every script except observed-vs-liability takes its files through --inputs.
-    for key, argv in cases.items():
-        if not key.startswith("observed_vs_liability"):
-            cases[key] = ["--inputs", *argv]
+        cases[f"{script}_low_mz"] = scenarios(low)
     return cases
 
 
@@ -436,37 +415,39 @@ def _compare_direct(results: Path, out: Path) -> list[str]:
 
     Update the calls here when a figure's signature changes; the PNGs must not.
     """
-    from simace.plotting import compare_scenarios as cs
+    from simace.plotting.compare import PrevalenceSeries, ScenarioReps
+    from simace.plotting.compare.am import compare_correlations_by_relclass, compare_naive_estimators
+    from simace.plotting.compare.increasing_e import compare_cohort_fs_correlations, compare_prevalence_drift
+    from simace.plotting.compare.observed_scale import compare_observed_vs_liability_h2
+    from simace.plotting.compare.trajectory import compare_realized_variance_trajectory
 
-    def files(name: str, basename: str) -> list[Path]:
-        return [results / name / f"rep{r}" / basename for r in range(1, COMPARE_REPS + 1)]
+    def scenarios(names: Iterable[str], labels: Iterable[str] | None = None) -> list[ScenarioReps]:
+        names = list(names)
+        return [
+            ScenarioReps(label, tuple(results / n / f"rep{r}" for r in range(1, COMPARE_REPS + 1)))
+            for n, label in zip(names, names if labels is None else labels, strict=True)
+        ]
 
     e_std = [f"{e}_std" for e in _E]
-    am_ped = [files(n, "pedigree.parquet") for n in _AM]
-    models = list(_MODELS)
+    am = scenarios(_AM)
     written = {
         # Two standardize series (no per_generation), and no target line.
-        "direct_prevalence_two_series": lambda p: cs.compare_prevalence_drift(
-            [files(f"{e}_std", "report.yaml") for e in _E],
-            [files(f"{e}_nostd", "report.yaml") for e in _E],
-            list(_E),
+        "direct_prevalence_two_series": lambda p: compare_prevalence_drift(
+            [
+                PrevalenceSeries("standardize=global", tuple(scenarios((f"{e}_std" for e in _E), _E))),
+                PrevalenceSeries("standardize=none", tuple(scenarios((f"{e}_nostd" for e in _E), _E))),
+            ],
             p,
         ),
         # No reference lines or reference values.
-        "direct_trajectory_no_expected": lambda p: cs.compare_realized_variance_trajectory(
-            [files(n, "report.yaml") for n in e_std], e_std, p
-        ),
-        "direct_correlations_no_reference": lambda p: cs.compare_correlations_by_relclass(am_ped, list(_AM), p),
-        "direct_cohort_fs_no_reference": lambda p: cs.compare_cohort_fs_correlations(
-            [files(n, "pedigree.parquet") for n in e_std], e_std, p
-        ),
-        "direct_naive_no_input_h2": lambda p: cs.compare_naive_estimators(am_ped, list(_AM), p),
-        "direct_observed_no_input_h2": lambda p: cs.compare_observed_vs_liability_h2(
-            [files(n, "pedigree.parquet") for n in models], [files(n, "report.yaml") for n in models], models, p
-        ),
+        "direct_trajectory_no_expected": lambda p: compare_realized_variance_trajectory(scenarios(e_std), p),
+        "direct_correlations_no_reference": lambda p: compare_correlations_by_relclass(am, p),
+        "direct_cohort_fs_no_reference": lambda p: compare_cohort_fs_correlations(scenarios(e_std), p),
+        "direct_naive_no_input_h2": lambda p: compare_naive_estimators(am, p),
+        "direct_observed_no_input_h2": lambda p: compare_observed_vs_liability_h2(scenarios(_MODELS), p),
         # The script always passes the first scenario's parameters; this draws the reference lines from them too.
-        "direct_correlations_reference": lambda p: cs.compare_correlations_by_relclass(
-            am_ped, list(_AM), p, reference=cs.scenario_parameters(am_ped[0][0])
+        "direct_correlations_reference": lambda p: compare_correlations_by_relclass(
+            am, p, reference=am[0].parameters()
         ),
     }
     for name, render in written.items():

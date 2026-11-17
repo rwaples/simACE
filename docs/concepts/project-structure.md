@@ -120,7 +120,14 @@ simACE/
 │       ├── plot_effective_size.py        # Effective-size atlas plots
 │       ├── plot_am_equilibrium.py        # Assortative-mating equilibrium plot
 │       ├── plot_validation.py            # Validation summary plots
-│       ├── compare_scenarios.py          # Cross-scenario comparison plots for the Examples pages
+│       ├── compare/                      # Cross-scenario comparison figures for the Examples pages
+│       │   ├── _inputs.py                # ScenarioReps (label + replicate dirs), group_reps
+│       │   ├── _draw.py                  # Rep envelopes, envelope lines, grouped bars, save
+│       │   ├── estimates.py              # report.yaml readers for the figures
+│       │   ├── trajectory.py             # Realized variance components per generation
+│       │   ├── am.py                     # Assortative-mating figures
+│       │   ├── increasing_e.py           # Time-varying E figures
+│       │   └── observed_scale.py         # Observed- vs liability-scale h²
 │       ├── atlas_manifest.py             # Atlas registry: ordered plots and section breaks
 │       ├── render_atlas.py               # Format-dispatching seam for atlas rendering
 │       ├── plot_atlas_html.py            # Single-page HTML atlas (the default artifact)
