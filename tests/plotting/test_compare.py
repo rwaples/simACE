@@ -107,3 +107,17 @@ def test_rep_envelope_of_no_finite_value_is_nan():
 def test_bar_offsets_center_each_group_on_x():
     offsets = [bar_offsets(np.array([0.0, 1.0]), 0.8, 2, i) for i in range(2)]
     assert np.allclose(offsets, [[-0.2, 0.8], [0.2, 1.2]])
+
+
+def test_relclass_labels_a_scenario_below_baseline_with_its_sign(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    figures = []
+    monkeypatch.setattr(am, "save", lambda fig, *a, **k: figures.append(fig))
+    names = [name for name, _, _ in POOLED_RELATIONSHIP_CLASSES]
+    by_scenario = iter([{n: [0.30] for n in names}, {n: [0.27] for n in names}])
+    monkeypatch.setattr(am, "load_pooled_liability_correlations", lambda *a, **k: next(by_scenario))
+    am.compare_correlations_by_relclass(
+        [ScenarioReps("base", (tmp_path,)), ScenarioReps("low", (tmp_path,))], tmp_path / "p.png"
+    )
+    texts = {t.get_text() for t in figures[0].axes[0].texts}
+    plt.close(figures[0])
+    assert texts == {"-0.03\n(-10%)"}

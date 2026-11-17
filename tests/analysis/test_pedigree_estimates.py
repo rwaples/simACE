@@ -8,7 +8,12 @@ import numpy as np
 import polars as pl
 import pytest
 
-from simace.analysis.stats.pedigree_estimates import load_pedigree_estimates, load_sib_pair_liabilities
+from simace.analysis.stats.pedigree_estimates import (
+    h2_from_variances,
+    load_pedigree_estimates,
+    load_sib_pair_liabilities,
+    realized_h2,
+)
 from simace.core.parquet import save_parquet
 
 if TYPE_CHECKING:
@@ -174,3 +179,14 @@ def test_po_slope_is_nan_below_ten_children(tmp_path: Path):
     df = _three_generations(tmp_path / "ped.parquet", n=4)
     save_parquet(df.filter(pl.col("generation") < 3), tmp_path / "small.parquet")
     assert np.isnan(load_pedigree_estimates(tmp_path / "small.parquet", trait=1, min_generation=2).po_slope)
+
+
+def test_h2_from_variances():
+    assert h2_from_variances(0.5, 0.2, 0.3) == pytest.approx(0.5)
+    assert np.isnan(h2_from_variances(0.0, 0.0, 0.0))
+
+
+def test_realized_h2_uses_sample_variances():
+    """var(a) = var(e) = 2 with ddof=1 and var(c) = 0, so h² = 2 / 4; float32 input is widened."""
+    a, c, e = np.array([0.0, 2.0]), np.array([1.0, 1.0]), np.array([0.0, 2.0], dtype=np.float32)
+    assert realized_h2(a, c, e) == pytest.approx(0.5)

@@ -7,12 +7,14 @@ __all__ = [
     "CohortEstimates",
     "H2Reps",
     "PedigreeEstimates",
+    "h2_from_variances",
     "load_naive_estimator_h2",
     "load_observed_vs_liability_h2",
     "load_pedigree_estimates",
     "load_pedigree_estimates_per_generation",
     "load_pooled_liability_correlations",
     "load_sib_pair_liabilities",
+    "realized_h2",
 ]
 
 import math
@@ -52,6 +54,18 @@ POOLED_RELATIONSHIP_CLASSES: tuple[tuple[str, float, tuple[str, ...]], ...] = tu
         ("1C", ("1C",)),
     )
 )
+
+
+def h2_from_variances(v_a: float, v_c: float, v_e: float) -> float:
+    """Realized h², ``vA / (vA + vC + vE)``; NaN at zero total variance."""
+    total = v_a + v_c + v_e
+    return v_a / total if total > 0 else math.nan
+
+
+def realized_h2(a: np.ndarray, c: np.ndarray, e: np.ndarray) -> float:
+    """Realized h² of individuals' A, C and E values (sample variances, ``ddof=1``, in float64)."""
+    v_a, v_c, v_e = (float(np.var(x, ddof=1, dtype=np.float64)) for x in (a, c, e))
+    return h2_from_variances(v_a, v_c, v_e)
 
 
 @dataclass(frozen=True)
@@ -162,13 +176,8 @@ def load_pedigree_estimates(
     fit = stratum_line(fits, 1)
     po_slope = fit.slope if fit is not None and fit.n >= 10 and fit.slope is not None else float("nan")
 
-    vA = float(np.var(df[f"A{trait}"].to_numpy(), ddof=1, dtype=np.float64))
-    vC = float(np.var(df[f"C{trait}"].to_numpy(), ddof=1, dtype=np.float64))
-    vE = float(np.var(df[f"E{trait}"].to_numpy(), ddof=1, dtype=np.float64))
-    total = vA + vC + vE
-    realized_h2 = vA / total if total > 0 else float("nan")
-
-    return PedigreeEstimates(r=corrs, po_slope=po_slope, realized_h2=realized_h2)
+    h2 = realized_h2(*(df[f"{part}{trait}"].to_numpy() for part in "ACE"))
+    return PedigreeEstimates(r=corrs, po_slope=po_slope, realized_h2=h2)
 
 
 def load_pooled_liability_correlations(
@@ -360,10 +369,9 @@ def load_pedigree_estimates_per_generation(
     pairs_full = PedigreeGraph.from_frame(df_full).relationship_pairs(max_degree=1)
     gen_arr = df_full["generation"].to_numpy()
     liab_full = df_full[f"liability{trait}"].to_numpy()
-    # float64 to match pandas Series.var(ddof=1) precision used previously.
-    A_full = df_full[f"A{trait}"].to_numpy().astype(np.float64)
-    C_full = df_full[f"C{trait}"].to_numpy().astype(np.float64)
-    E_full = df_full[f"E{trait}"].to_numpy().astype(np.float64)
+    A_full = df_full[f"A{trait}"].to_numpy()
+    C_full = df_full[f"C{trait}"].to_numpy()
+    E_full = df_full[f"E{trait}"].to_numpy()
 
     out: dict[int, CohortEstimates] = {}
     for g in gens:
@@ -383,11 +391,9 @@ def load_pedigree_estimates_per_generation(
             else:
                 cohort_corrs[code] = safe_corrcoef(liab_full[idx1_g], liab_full[idx2_g])
 
-        vA = float(np.var(A_full[gen_mask], ddof=1))
-        vC = float(np.var(C_full[gen_mask], ddof=1))
-        vE = float(np.var(E_full[gen_mask], ddof=1))
-        total = vA + vC + vE
-        realized_h2 = vA / total if total > 0 else float("nan")
-
-        out[g] = CohortEstimates(r_mz=cohort_corrs["MZ"], r_fs=cohort_corrs["FS"], realized_h2=realized_h2)
+        out[g] = CohortEstimates(
+            r_mz=cohort_corrs["MZ"],
+            r_fs=cohort_corrs["FS"],
+            realized_h2=realized_h2(A_full[gen_mask], C_full[gen_mask], E_full[gen_mask]),
+        )
     return out

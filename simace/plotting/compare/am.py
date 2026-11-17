@@ -224,7 +224,7 @@ def compare_correlations_by_relclass(
             ax.text(
                 offsets[i],
                 top + 0.008,
-                f"+{abs_delta:.2f}\n({rel_pct:+.0f}%)",
+                f"{abs_delta:+.2f}\n({rel_pct:+.0f}%)",
                 ha="center",
                 va="bottom",
                 fontsize=7,

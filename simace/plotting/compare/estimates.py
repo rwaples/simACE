@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from simace.analysis.stats.pedigree_estimates import h2_from_variances
 from simace.core.relationships import RELATIONSHIP_TYPES
 from simace.core.yaml_io import load_yaml
 from simace.plotting.stats_report import plotting_report_view, report_per_generation
@@ -47,9 +48,7 @@ def load_per_generation(
             vA = float(gen_data[f"A{trait}_var"])
             vC = float(gen_data[f"C{trait}_var"])
             vE = float(gen_data[f"E{trait}_var"])
-            total = vA + vC + vE
-            h2 = vA / total if total > 0 else float("nan")
-            rep_dict[gen] = (vA, vC, vE, h2)
+            rep_dict[gen] = (vA, vC, vE, h2_from_variances(vA, vC, vE))
         per_rep.append(rep_dict)
 
     gens = sorted(set().union(*(r.keys() for r in per_rep)))
