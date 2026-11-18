@@ -2955,3 +2955,222 @@ cib4_lhs20_swapt:
     gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
     death_scale: 164
     death_rho: 2.73
+
+# Tier 5 (cib5_*): rg age rule under non-ADuLT onset models, and equal onsets at rA 0.9, R = 200.
+
+# {'K1': 0.0757, 'K2': 0.0233, 'A1': 0.66, 'A2': 0.54, 'rA': 0.9, 'x1': 57, 'x2': 25, 'model': 'simple_ltm'}
+cib5_lhs03_simple:
+  seed: 350000
+  N: 50000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 4
+  replicates: 200
+  standardize: none
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.66
+      C: 0.0
+      E: 0.34
+    trait2:
+      A: 0.54
+      C: 0.0
+      E: 0.46
+    rA: 0.9
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: simple_ltm
+      params:
+        prevalence: 0.0757
+        onset: {kind: normal, mean: 57, sd: 12.0920}
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: simple_ltm
+      params:
+        prevalence: 0.0233
+        onset: {kind: normal, mean: 25, sd: 12.0920}
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+# {'K1': 0.0757, 'K2': 0.0233, 'A1': 0.66, 'A2': 0.54, 'rA': 0.9, 'x1': 57, 'x2': 25, 'model': 'cure_frailty'}
+cib5_lhs03_cure:
+  seed: 350000
+  N: 50000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 4
+  replicates: 200
+  standardize: none
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.66
+      C: 0.0
+      E: 0.34
+    trait2:
+      A: 0.54
+      C: 0.0
+      E: 0.46
+    rA: 0.9
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 4.043051
+        sigma: 0.212140
+        prevalence: 0.0757
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.218876
+        sigma: 0.483680
+        prevalence: 0.0233
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+# {'K1': 0.0757, 'K2': 0.0233, 'A1': 0.66, 'A2': 0.54, 'rA': 0.9, 'x1': 25, 'x2': 57, 'model': 'simple_ltm'}
+cib5_lhs03_swapx_simple:
+  seed: 350000
+  N: 50000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 4
+  replicates: 200
+  standardize: none
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.66
+      C: 0.0
+      E: 0.34
+    trait2:
+      A: 0.54
+      C: 0.0
+      E: 0.46
+    rA: 0.9
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: simple_ltm
+      params:
+        prevalence: 0.0757
+        onset: {kind: normal, mean: 25, sd: 12.0920}
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: simple_ltm
+      params:
+        prevalence: 0.0233
+        onset: {kind: normal, mean: 57, sd: 12.0920}
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+# {'K1': 0.0757, 'K2': 0.0233, 'A1': 0.66, 'A2': 0.54, 'rA': 0.9, 'x1': 25, 'x2': 57, 'model': 'cure_frailty'}
+cib5_lhs03_swapx_cure:
+  seed: 350000
+  N: 50000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 4
+  replicates: 200
+  standardize: none
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.66
+      C: 0.0
+      E: 0.34
+    trait2:
+      A: 0.54
+      C: 0.0
+      E: 0.46
+    rA: 0.9
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.218876
+        sigma: 0.483680
+        prevalence: 0.0757
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 4.043051
+        sigma: 0.212140
+        prevalence: 0.0233
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+# {'K1': 0.25, 'K2': 0.25, 'A1': 0.5, 'A2': 0.5, 'rA': 0.9, 'x1': 50, 'x2': 50}
+cib5_eq_rA09:
+  seed: 350000
+  N: 50000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 4
+  replicates: 200
+  standardize: none
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.9
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
