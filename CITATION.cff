@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "simACE"
+version: "v2026.09.2"
+license: MIT
+repository-code: "https://github.com/rwaples/simACE"
+description: "ACE pedigree simulation with A/C/E variance components; simulates registry-scale age-of-onset phenotypes in multi-generational pedigrees."
+authors:
+  - family-names: "Waples"
+    given-names: "Ryan"
+    email: "ryan.waples@gmail.com"
